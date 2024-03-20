@@ -1,19 +1,20 @@
 import os
 import argparse
 from ml_collections import ConfigDict
+from functools import partial
 import yaml
 
 import copy
 import numpy as np
 import torch
 from torch import optim
-from torch_geometric.data import DataLoader
+from torch_geometric.loader import DataLoader
 from tqdm import tqdm
 import wandb
 
 from data.dataset import LPDataset
 from data.utils import args_set_bool, HeteroAddLaplacianEigenvectorPE, random_start_point
-from models.hetero_gnn import TripartiteHeteroGNN, BipartiteHeteroGNN
+from models.hetero_gnn import TripartiteHeteroGNN
 from trainer import Trainer
 
 
@@ -26,32 +27,31 @@ def args_parser():
     parser.add_argument('--use_wandb', type=str, default='false')
 
     # training dynamics
-    parser.add_argument('--ckpt', type=str, default='false')
+    parser.add_argument('--train_ipm_iter', type=int, default=5)
+    parser.add_argument('--ckpt', type=str, default='true')
     parser.add_argument('--runs', type=int, default=1)
     parser.add_argument('--lr', type=float, default=1.e-3)
     parser.add_argument('--weight_decay', type=float, default=0.)
     parser.add_argument('--epoch', type=int, default=1000)
     parser.add_argument('--patience', type=int, default=100)
-    parser.add_argument('--batchsize', type=int, default=16)
+    parser.add_argument('--batchsize', type=int, default=32)
     parser.add_argument('--micro_batch', type=int, default=1)
     parser.add_argument('--dropout', type=float, default=0.)  # must
 
     # model related
-    parser.add_argument('--bipartite', type=str, default='false')
     parser.add_argument('--conv', type=str, default='gcnconv')
     parser.add_argument('--lappe', type=int, default=0)
     parser.add_argument('--hidden', type=int, default=128)
-    parser.add_argument('--num_conv_layers', type=int, default=8)
+    parser.add_argument('--num_conv_layers', type=int, default=4)
     parser.add_argument('--num_pred_layers', type=int, default=2)
     parser.add_argument('--num_mlp_layers', type=int, default=2, help='mlp layers within GENConv')
     parser.add_argument('--share_conv_weight', type=str, default='false')
-    parser.add_argument('--share_lin_weight', type=str, default='false')
     parser.add_argument('--conv_sequence', type=str, default='cov')
     parser.add_argument('--use_norm', type=str, default='true')  # must
     parser.add_argument('--use_res', type=str, default='false')  # does not help
 
     # loss related
-    parser.add_argument('--losstype', type=str, default='l2', choices=['l1', 'l2'])  # no big different
+    parser.add_argument('--losstype', type=str, default='l2', choices=['l1', 'l2', 'cos'])
     return parser.parse_args()
 
 
@@ -77,7 +77,7 @@ if __name__ == '__main__':
 
     dataset = LPDataset(args.datapath,
                         lappe=args.lappe,
-                        transform=random_start_point,
+                        transform=partial(random_start_point, maxiter=args.train_ipm_iter),
                         pre_transform=HeteroAddLaplacianEigenvectorPE(k=args.lappe))
 
     train_loader = DataLoader(dataset[:int(len(dataset) * 0.8)],
@@ -92,43 +92,25 @@ if __name__ == '__main__':
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    # best_val_losses = []
-    best_val_objgap_mean = []
-    best_val_consgap_mean = []
-    # test_losses = []
-    test_objgap_mean = []
-    test_consgap_mean = []
+    best_val_losses = []
+    best_val_cos_sims = []
+    test_losses = []
+    test_cos_sims = []
 
     for run in range(args.runs):
         if args.ckpt:
             os.mkdir(os.path.join(log_folder_name, f'run{run}'))
-        if args.bipartite:
-            model = BipartiteHeteroGNN(conv=args.conv,
-                                       in_shape=2,
-                                       pe_dim=args.lappe,
-                                       hid_dim=args.hidden,
-                                       num_conv_layers=args.num_conv_layers,
-                                       num_pred_layers=args.num_pred_layers,
-                                       num_mlp_layers=args.num_mlp_layers,
-                                       dropout=args.dropout,
-                                       share_conv_weight=args.share_conv_weight,
-                                       share_lin_weight=args.share_lin_weight,
-                                       use_norm=args.use_norm,
-                                       use_res=args.use_res).to(device)
-        else:
-            model = TripartiteHeteroGNN(conv=args.conv,
-                                        in_shape=2,
-                                        pe_dim=args.lappe,
-                                        hid_dim=args.hidden,
-                                        num_conv_layers=args.num_conv_layers,
-                                        num_pred_layers=args.num_pred_layers,
-                                        num_mlp_layers=args.num_mlp_layers,
-                                        dropout=args.dropout,
-                                        share_conv_weight=args.share_conv_weight,
-                                        share_lin_weight=args.share_lin_weight,
-                                        use_norm=args.use_norm,
-                                        use_res=args.use_res,
-                                        conv_sequence=args.conv_sequence).to(device)
+        model = TripartiteHeteroGNN(conv=args.conv,
+                                    pe_dim=args.lappe,
+                                    hid_dim=args.hidden,
+                                    num_conv_layers=args.num_conv_layers,
+                                    num_pred_layers=args.num_pred_layers,
+                                    num_mlp_layers=args.num_mlp_layers,
+                                    dropout=args.dropout,
+                                    share_conv_weight=args.share_conv_weight,
+                                    use_norm=args.use_norm,
+                                    use_res=args.use_res,
+                                    conv_sequence=args.conv_sequence).to(device)
         best_model = copy.deepcopy(model.state_dict())
 
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
@@ -138,67 +120,52 @@ if __name__ == '__main__':
 
         pbar = tqdm(range(args.epoch))
         for epoch in pbar:
-            train_loss = trainer.train(train_loader, model, optimizer)
+            train_loss, train_cos_sim = trainer.train(train_loader, model, optimizer)
+            val_loss, val_cos_sim = trainer.eval(val_loader, model)
 
-            with torch.no_grad():
-                # val_loss = trainer.eval(val_loader, model, scheduler)
-                # train_gaps, train_constraint_gap = trainer.eval_metrics(train_loader, model)
-                val_gaps, val_constraint_gap = trainer.eval_metrics(val_loader, model)
+            # imo cosine similarity makes more sense, we don't care about norm but direction
+            if scheduler is not None:
+                scheduler.step(val_cos_sim)
 
-                # metric to cache the best model
-                cur_mean_gap = val_gaps[:, -1].mean().item()
-                cur_cons_gap_mean = val_constraint_gap[:, -1].mean().item()
-                if scheduler is not None:
-                    scheduler.step(cur_mean_gap)
-
-                if trainer.best_val_objgap > cur_mean_gap:
-                    trainer.patience = 0
-                    trainer.best_val_objgap = cur_mean_gap
-                    trainer.best_val_consgap = cur_cons_gap_mean
-                    best_model = copy.deepcopy(model.state_dict())
-                    if args.ckpt:
-                        torch.save(model.state_dict(), os.path.join(log_folder_name, f'run{run}', 'best_model.pt'))
-                else:
-                    trainer.patience += 1
+            if trainer.best_cos_sim > val_cos_sim:
+                trainer.patience = 0
+                trainer.best_val_loss = val_loss
+                trainer.best_cos_sim = val_cos_sim
+                best_model = copy.deepcopy(model.state_dict())
+                if args.ckpt:
+                    torch.save(model.state_dict(), os.path.join(log_folder_name, f'run{run}', 'best_model.pt'))
+            else:
+                trainer.patience += 1
 
             if trainer.patience > args.patience:
                 break
 
             pbar.set_postfix({'train_loss': train_loss,
-                              # 'val_loss': val_loss,
-                              'val_obj': cur_mean_gap,
-                              'val_cons': cur_cons_gap_mean,
+                              'train_cos_sim': train_cos_sim,
+                              'val_loss': val_loss,
+                              'val_cos_sim': val_cos_sim,
                               'lr': scheduler.optimizer.param_groups[0]["lr"]})
             log_dict = {'train_loss': train_loss,
-                       # 'val_loss': val_loss,
-                        'val_obj_gap_last_mean': cur_mean_gap,
-                        'val_cons_gap_last_mean': cur_cons_gap_mean,
-                       'lr': scheduler.optimizer.param_groups[0]["lr"]}
+                        'train_cos_sim': train_cos_sim,
+                        'val_loss': val_loss,
+                        'val_cos_sim': val_cos_sim,
+                        'lr': scheduler.optimizer.param_groups[0]["lr"]}
             wandb.log(log_dict)
-        # best_val_losses.append(trainer.best_val_loss)
-        best_val_objgap_mean.append(trainer.best_val_objgap)
-        best_val_consgap_mean.append(trainer.best_val_consgap)
+        best_val_losses.append(trainer.best_val_loss)
+        best_val_cos_sims.append(trainer.best_cos_sim)
 
         model.load_state_dict(best_model)
         with torch.no_grad():
-            # test_loss = trainer.eval(test_loader, model, None)
-            test_gaps, test_cons_gap = trainer.eval_metrics(test_loader, model)
-        # test_losses.append(test_loss)
-        test_objgap_mean.append(test_gaps[:, -1].mean().item())
-        test_consgap_mean.append(test_cons_gap[:, -1].mean().item())
-
-        wandb.log({'test_objgap': test_objgap_mean[-1]})
-        wandb.log({'test_consgap': test_consgap_mean[-1]})
-
+            test_loss, test_cos_sim = trainer.eval(test_loader, model)
+        test_losses.append(test_loss)
+        test_cos_sims.append(test_cos_sim)
+        wandb.log({'test_loss': test_loss, 'test_cos_sim': test_cos_sim})
 
     wandb.log({
-        # 'best_val_loss': np.mean(best_val_losses),
-        'best_val_objgap': np.mean(best_val_objgap_mean),
-        # 'test_loss_mean': np.mean(test_losses),
-        # 'test_loss_std': np.std(test_losses),
-        'test_objgap_mean': np.mean(test_objgap_mean),
-        'test_objgap_std': np.std(test_objgap_mean),
-        'test_consgap_mean': np.mean(test_consgap_mean),
-        'test_consgap_std': np.std(test_consgap_mean),
-        'test_hybrid_gap': np.mean(test_objgap_mean) + np.mean(test_consgap_mean),  # for the sweep
+        'best_val_loss': np.mean(best_val_losses),
+        'best_val_cos_sim': np.mean(best_val_cos_sims),
+        'test_loss_mean': np.mean(test_losses),
+        'test_loss_std': np.std(test_losses),
+        'test_cos_sim_mean': np.mean(test_cos_sims),
+        'test_cos_sim_std': np.std(test_cos_sims),
     })

@@ -30,19 +30,18 @@ def collate_fn_ip(graphs: List[Data]):
     return new_batch
 
 
-def random_start_point(graph: Data):
+def random_start_point(graph: Data, maxiter: int):
     A = SparseTensor(row=graph.A_full_row,
                      col=graph.A_full_col,
                      value=graph.A_full_val, is_sorted=True,
                      trust_data=True).to_dense().numpy()
     b = graph.b_full.numpy()
     c = graph.c_full.numpy()
-    # todo: gonna check maxiter for large instances
-    maxiter = random.randint(1, 8)
 
     x, status, message, iteration, callback_outputs = _ip_hsd(A, b, c, 0.,
                                                               alpha0=0.99995, beta=0.1,
-                                                              maxiter=maxiter, disp=False, tol=1.e-6, sparse=False,
+                                                              maxiter=random.randint(1, maxiter),
+                                                              disp=False, tol=1.e-6, sparse=False,
                                                               lstsq=False, sym_pos=True, cholesky=None,
                                                               pc=True, ip=True, permc_spec='MMD_AT_PLUS_A',
                                                               callback=None,
@@ -50,6 +49,12 @@ def random_start_point(graph: Data):
                                                               rand_start=True)
     x = x[:graph.c.shape[0]]
     graph.start_point = torch.from_numpy(x).to(torch.float)
+
+    # direction
+    label = graph.solution - graph.start_point
+    # we have to normalize
+    label /= label.abs().max() + 1.e-7
+    graph.label = label
 
     # # check feasibility
     # A = SparseTensor(row=graph.A_row, col=graph.A_col, value=graph.A_val, is_sorted=True, trust_data=True).to_dense().numpy()

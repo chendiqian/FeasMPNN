@@ -1,15 +1,15 @@
 import torch
 
-from torch_geometric.nn import MessagePassing, MLP
+from torch_geometric.nn import MessagePassing, MLP, Linear
 
 
 class GINEConv(MessagePassing):
-    def __init__(self, in_dim, edge_dim, hid_dim, num_mlp_layers, norm):
+    def __init__(self, edge_dim, hid_dim, num_mlp_layers, norm):
         super(GINEConv, self).__init__(aggr="add")
 
-        self.lin_src = torch.nn.Linear(in_dim, hid_dim)
-        self.lin_dst = torch.nn.Linear(in_dim, hid_dim)
-        self.lin_edge = torch.nn.Linear(edge_dim, hid_dim)
+        self.lin_src = Linear(-1, hid_dim)
+        self.lin_dst = Linear(-1, hid_dim)
+        self.lin_edge = Linear(edge_dim, hid_dim)
         self.mlp = MLP([hid_dim] * (num_mlp_layers + 1), norm=norm)
         self.eps = torch.nn.Parameter(torch.Tensor([1.]))
 

@@ -1,17 +1,16 @@
-import torch
 import torch.nn.functional as F
 
-from torch_geometric.nn import MessagePassing, MLP
+from torch_geometric.nn import MessagePassing, MLP, Linear
 from torch_geometric.utils import degree
 
 
 class GCNConv(MessagePassing):
-    def __init__(self, in_dim, edge_dim, hid_dim, num_mlp_layers, norm):
+    def __init__(self, edge_dim, hid_dim, num_mlp_layers, norm):
         super(GCNConv, self).__init__(aggr='add')
 
-        self.lin_src = torch.nn.Linear(in_dim, hid_dim)
-        self.lin_dst = torch.nn.Linear(in_dim, hid_dim)
-        self.lin_edge = torch.nn.Linear(edge_dim, hid_dim)
+        self.lin_src = Linear(-1, hid_dim)
+        self.lin_dst = Linear(-1, hid_dim)
+        self.lin_edge = Linear(edge_dim, hid_dim)
         self.mlp = MLP([hid_dim] * (num_mlp_layers + 1), norm=norm)
 
     def forward(self, x, edge_index, edge_attr):

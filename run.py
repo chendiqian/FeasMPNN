@@ -47,7 +47,7 @@ def args_parser():
     parser.add_argument('--num_mlp_layers', type=int, default=2, help='mlp layers within GENConv')
     parser.add_argument('--share_conv_weight', type=str, default='false')
     parser.add_argument('--conv_sequence', type=str, default='cov')
-    parser.add_argument('--norm', type=str, default='batchnorm')  # must
+    parser.add_argument('--norm', type=str, default='graphnorm')  # empirically better
     parser.add_argument('--use_res', type=str, default='false')  # does not help
     parser.add_argument('--dropout', type=float, default=0.)  # must
 

@@ -31,12 +31,12 @@ def collate_fn_ip(graphs: List[Data]):
 
 
 def random_start_point(graph: Data, maxiter: int):
-    A = SparseTensor(row=graph.A_full_row,
-                     col=graph.A_full_col,
-                     value=graph.A_full_val, is_sorted=True,
+    A = SparseTensor(row=graph.A_row,
+                     col=graph.A_col,
+                     value=graph.A_val, is_sorted=True,
                      trust_data=True).to_dense().numpy()
-    b = graph.b_full.numpy()
-    c = graph.c_full.numpy()
+    b = graph.b.numpy()
+    c = graph.c.numpy()
 
     x, status, message, iteration, callback_outputs = _ip_hsd(A, b, c, 0.,
                                                               alpha0=0.99995, beta=0.1,
@@ -56,26 +56,12 @@ def random_start_point(graph: Data, maxiter: int):
     label /= label.abs().max() + 1.e-7
     graph.label = label
 
-    # # check feasibility
-    # A = SparseTensor(row=graph.A_row, col=graph.A_col, value=graph.A_val, is_sorted=True, trust_data=True).to_dense().numpy()
-    # b = graph.b.numpy()
-    # c = graph.c.numpy()
-    #
-    # A @ x - b
-    # x
-
     # remove a, b, c unnecessary
     graph.A_row = None
     graph.A_col = None
     graph.A_val = None
     graph.b = None
     graph.c = None
-    graph.A_full_row = None
-    graph.A_full_col = None
-    graph.A_full_val = None
-    graph.b_full = None
-    graph.c_full = None
-
     return graph
 
 

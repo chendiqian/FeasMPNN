@@ -2,19 +2,11 @@ import gzip
 import os
 import os.path as osp
 import pickle
-from collections import namedtuple
 from typing import Callable, List, Optional
 
 import torch
-from scipy.optimize._linprog_util import _clean_inputs, _get_Abc
 from torch_geometric.data import Batch, HeteroData, InMemoryDataset
-from torch_sparse import SparseTensor
 from tqdm import tqdm
-
-# https://github.com/scipy/scipy/blob/e574cbcabf8d25955d1aafeed02794f8b5f250cd/scipy/optimize/_linprog_util.py#L15
-_LPProblem = namedtuple('_LPProblem',
-                        'c A_ub b_ub A_eq b_eq bounds x0 integrality')
-_LPProblem.__new__.__defaults__ = (None,) * 7  # make c the only required arg
 
 
 class LPDataset(InMemoryDataset):
@@ -55,18 +47,13 @@ class LPDataset(InMemoryDataset):
                 ip_pkgs = pickle.load(file)
 
             for ip_idx in tqdm(range(len(ip_pkgs))):
-                (A_original, b_original, c_original, obj, x) = ip_pkgs[ip_idx]
+                (A, b, c, x, lam, s) = ip_pkgs[ip_idx]
 
-                A = torch.from_numpy(A_original).to(torch.float)
-                b = torch.from_numpy(b_original).to(torch.float)
-                c = torch.from_numpy(c_original).to(torch.float)
+                A = torch.from_numpy(A).to(torch.float)
+                b = torch.from_numpy(b).to(torch.float)
+                c = torch.from_numpy(c).to(torch.float)
 
-                lp = _LPProblem(c_original, A_original, b_original, None, None, (0, 1), None, None)
-                lp = _clean_inputs(lp)
-                A_full, b_full, c_full, *_ = _get_Abc(lp, 0.)  # standard from Ax = b
-
-                sp_a = SparseTensor.from_dense(A, has_value=True)
-                sp_a_full = SparseTensor.from_dense(torch.from_numpy(A_full).to(torch.float), has_value=True)
+                row, col = torch.where(A)
 
                 data = HeteroData(
                     cons={'x': torch.cat([A.mean(1, keepdims=True),
@@ -93,18 +80,14 @@ class LPDataset(InMemoryDataset):
                                                                torch.arange(A.shape[0])]),
                                    'edge_attr': b[:, None]},
 
-                    obj_val=obj,
                     solution=torch.from_numpy(x).to(torch.float),
+                    lam=torch.from_numpy(lam).to(torch.float),
+                    s=torch.from_numpy(s).to(torch.float),
                     c=c,
                     b=b,
-                    A_row=sp_a.storage._row,
-                    A_col=sp_a.storage._col,
-                    A_val=sp_a.storage._value,
-                    b_full=torch.from_numpy(b_full).to(torch.float),
-                    c_full=torch.from_numpy(c_full).to(torch.float),
-                    A_full_row=sp_a_full.storage._row,
-                    A_full_col=sp_a_full.storage._col,
-                    A_full_val=sp_a_full.storage._value,
+                    A_row=row,
+                    A_col=col,
+                    A_val=A[row, col],
                     )
 
                 if self.pre_filter is not None:

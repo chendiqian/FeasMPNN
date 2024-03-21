@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 import torch.nn.functional as F
 from torch_geometric.nn import MLP
@@ -43,34 +45,29 @@ def strseq2rank(conv_sequence):
 def get_conv_layer(conv: str,
                    hid_dim: int,
                    num_mlp_layers: int,
-                   use_norm: bool):
+                   norm: Optional[str]):
     if conv.lower() == 'genconv':
-        def get_conv():
-            return GENConv(in_channels=-1,
-                           out_channels=hid_dim,
-                           num_layers=num_mlp_layers,
-                           aggr='softmax',
-                           msg_norm=use_norm,
-                           learn_msg_scale=use_norm,
-                           norm='batch' if use_norm else None,
-                           bias=True,
-                           edge_dim=1)
+        return GENConv(in_channels=-1,
+                       out_channels=hid_dim,
+                       num_layers=num_mlp_layers,
+                       aggr='softmax',
+                       msg_norm=norm is not None,
+                       learn_msg_scale=norm is not None,
+                       norm=norm,
+                       bias=True,
+                       edge_dim=1)
     elif conv.lower() == 'gcnconv':
-        def get_conv():
-            return GCNConv(edge_dim=1,
-                           hid_dim=hid_dim,
-                           num_mlp_layers=num_mlp_layers,
-                           norm='batch' if use_norm else None)
+        return GCNConv(edge_dim=1,
+                       hid_dim=hid_dim,
+                       num_mlp_layers=num_mlp_layers,
+                       norm=norm)
     elif conv.lower() == 'ginconv':
-        def get_conv():
-            return GINEConv(edge_dim=1,
-                            hid_dim=hid_dim,
-                            num_mlp_layers=num_mlp_layers,
-                            norm='batch' if use_norm else None)
+        return GINEConv(edge_dim=1,
+                        hid_dim=hid_dim,
+                        num_mlp_layers=num_mlp_layers,
+                        norm=norm)
     else:
         raise NotImplementedError
-
-    return get_conv
 
 
 class TripartiteHeteroGNN(torch.nn.Module):
@@ -83,7 +80,7 @@ class TripartiteHeteroGNN(torch.nn.Module):
                  num_mlp_layers,
                  dropout,
                  share_conv_weight,
-                 use_norm,
+                 norm,
                  use_res,
                  conv_sequence='parallel'):
         super().__init__()
@@ -103,30 +100,30 @@ class TripartiteHeteroGNN(torch.nn.Module):
             self.pe_encoder = None
             in_emb_dim = 2 * hid_dim
 
-        self.encoder = torch.nn.ModuleDict({'vals': MLP([-1, hid_dim, in_emb_dim], norm='batch'),
-                                            'cons': MLP([-1, hid_dim, in_emb_dim], norm='batch'),
-                                            'obj': MLP([-1, hid_dim, in_emb_dim], norm='batch')})
+        self.encoder = torch.nn.ModuleDict({'vals': MLP([-1, hid_dim, in_emb_dim], norm=norm),
+                                            'cons': MLP([-1, hid_dim, in_emb_dim], norm=norm),
+                                            'obj': MLP([-1, hid_dim, in_emb_dim], norm=None)})
         self.start_pos_encoder = MLP([-1, hid_dim, in_emb_dim], norm=None)  # shouldn't use batchnorm imo
 
         c2v, v2c, v2o, o2v, c2o, o2c = strseq2rank(conv_sequence)
-        get_conv = get_conv_layer(conv, hid_dim, num_mlp_layers, use_norm)
         self.gcns = torch.nn.ModuleList()
         for layer in range(num_conv_layers):
             if layer == 0 or not share_conv_weight:
                 self.gcns.append(
                     HeteroConv({
-                        ('cons', 'to', 'vals'): (get_conv(), c2v),
-                        ('vals', 'to', 'cons'): (get_conv(), v2c),
-                        ('vals', 'to', 'obj'): (get_conv(), v2o),
-                        ('obj', 'to', 'vals'): (get_conv(), o2v),
-                        ('cons', 'to', 'obj'): (get_conv(), c2o),
-                        ('obj', 'to', 'cons'): (get_conv(), o2c),
+                        ('cons', 'to', 'vals'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), c2v),
+                        ('vals', 'to', 'cons'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), v2c),
+                        ('vals', 'to', 'obj'): (get_conv_layer(conv, hid_dim, num_mlp_layers, None), v2o),
+                        ('obj', 'to', 'vals'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), o2v),
+                        ('cons', 'to', 'obj'): (get_conv_layer(conv, hid_dim, num_mlp_layers, None), c2o),
+                        ('obj', 'to', 'cons'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), o2c),
                     }, aggr='cat'))
 
         self.pred_vals = MLP([-1] + [hid_dim] * (num_pred_layers - 1) + [1])
         # self.pred_cons = MLP([-1] + [hid_dim] * (num_pred_layers - 1) + [1])
 
     def forward(self, data):
+        batch_dict = data.batch_dict
         x_dict, edge_index_dict, edge_attr_dict = data.x_dict, data.edge_index_dict, data.edge_attr_dict
         for k in ['cons', 'vals', 'obj']:
             x_emb = self.encoder[k](x_dict[k])
@@ -145,7 +142,7 @@ class TripartiteHeteroGNN(torch.nn.Module):
                 i = 0
 
             h1 = x_dict
-            h2 = self.gcns[i](x_dict, edge_index_dict, edge_attr_dict)
+            h2 = self.gcns[i](x_dict, edge_index_dict, edge_attr_dict, batch_dict)
             keys = h2.keys()
             hiddens.append((h2['cons'], h2['vals']))
             if self.use_res:

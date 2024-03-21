@@ -11,7 +11,6 @@ from torch_geometric.typing import (
     Adj,
     OptPairTensor,
     OptTensor,
-    Size,
     SparseTensor,
 )
 from torch_geometric.utils import is_torch_sparse_tensor, to_edge_index
@@ -104,8 +103,10 @@ class GENConv(MessagePassing):
         if hasattr(self, 'lin_dst'):
             self.lin_dst.reset_parameters()
 
-    def forward(self, x: Union[torch.Tensor, OptPairTensor], edge_index: Adj,
-                edge_attr: OptTensor = None, size: Size = None) -> torch.Tensor:
+    def forward(self, x: Union[torch.Tensor, OptPairTensor],
+                edge_index: Adj,
+                edge_attr: OptTensor = None,
+                batch: OptTensor = None) -> torch.Tensor:
 
         if isinstance(x, torch.Tensor):
             x: OptPairTensor = (x, x)
@@ -127,7 +128,7 @@ class GENConv(MessagePassing):
         if edge_attr is not None:
             assert x[0].size(-1) == edge_attr.size(-1)
 
-        out = self.propagate(edge_index, x=x, edge_attr=edge_attr, size=size)
+        out = self.propagate(edge_index, x=x, edge_attr=edge_attr)
 
         if hasattr(self, 'lin_aggr_out'):
             out = self.lin_aggr_out(out)
@@ -143,7 +144,7 @@ class GENConv(MessagePassing):
                 x_dst = self.lin_dst(x_dst)
             out = out + x_dst
 
-        return self.mlp(out)
+        return self.mlp(out, batch)
 
     def message(self, x_j: torch.Tensor, edge_attr: OptTensor) -> torch.Tensor:
         msg = x_j if edge_attr is None else x_j + edge_attr

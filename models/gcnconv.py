@@ -13,7 +13,7 @@ class GCNConv(MessagePassing):
         self.lin_edge = Linear(edge_dim, hid_dim)
         self.mlp = MLP([hid_dim] * (num_mlp_layers + 1), norm=norm)
 
-    def forward(self, x, edge_index, edge_attr):
+    def forward(self, x, edge_index, edge_attr, batch):
         x = (self.lin_src(x[0]), x[1])
 
         if edge_attr is not None and hasattr(self, 'lin_edge'):
@@ -36,7 +36,7 @@ class GCNConv(MessagePassing):
         x_dst = self.lin_dst(x_dst)
         out = out + x_dst
 
-        return self.mlp(out)
+        return self.mlp(out, batch)
 
     def message(self, x_j, edge_attr, norm):
         return norm.view(-1, 1) * F.relu(x_j + edge_attr)

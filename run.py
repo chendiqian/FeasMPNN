@@ -27,6 +27,7 @@ def args_parser():
     parser.add_argument('--use_wandb', type=str, default='false')
 
     # training dynamics
+    parser.add_argument('--losstype', type=str, default='l2', choices=['l1', 'l2', 'cos'])
     parser.add_argument('--train_ipm_iter', type=int, default=5)
     parser.add_argument('--ckpt', type=str, default='true')
     parser.add_argument('--runs', type=int, default=1)
@@ -36,7 +37,6 @@ def args_parser():
     parser.add_argument('--patience', type=int, default=100)
     parser.add_argument('--batchsize', type=int, default=32)
     parser.add_argument('--micro_batch', type=int, default=1)
-    parser.add_argument('--dropout', type=float, default=0.)  # must
 
     # model related
     parser.add_argument('--conv', type=str, default='gcnconv')
@@ -47,11 +47,10 @@ def args_parser():
     parser.add_argument('--num_mlp_layers', type=int, default=2, help='mlp layers within GENConv')
     parser.add_argument('--share_conv_weight', type=str, default='false')
     parser.add_argument('--conv_sequence', type=str, default='cov')
-    parser.add_argument('--use_norm', type=str, default='true')  # must
+    parser.add_argument('--norm', type=str, default='batchnorm')  # must
     parser.add_argument('--use_res', type=str, default='false')  # does not help
+    parser.add_argument('--dropout', type=float, default=0.)  # must
 
-    # loss related
-    parser.add_argument('--losstype', type=str, default='l2', choices=['l1', 'l2', 'cos'])
     return parser.parse_args()
 
 
@@ -108,7 +107,7 @@ if __name__ == '__main__':
                                     num_mlp_layers=args.num_mlp_layers,
                                     dropout=args.dropout,
                                     share_conv_weight=args.share_conv_weight,
-                                    use_norm=args.use_norm,
+                                    norm=args.norm,
                                     use_res=args.use_res,
                                     conv_sequence=args.conv_sequence).to(device)
         best_model = copy.deepcopy(model.state_dict())

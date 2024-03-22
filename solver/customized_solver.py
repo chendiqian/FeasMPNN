@@ -4,6 +4,8 @@ from collections import namedtuple
 import numpy as np
 from scipy.linalg import LinAlgError
 from scipy.linalg import cho_factor, cho_solve, lstsq
+from scipy.sparse import spmatrix
+from scipy.sparse.linalg import cg as sp_cg
 
 # https://github.com/scipy/scipy/blob/e574cbcabf8d25955d1aafeed02794f8b5f250cd/scipy/optimize/_linprog_util.py#L15
 _LPProblem = namedtuple('_LPProblem',
@@ -65,18 +67,24 @@ def ipm_overleaf(c,
         try:
             s_inv = (s + SMALL_EPS) ** -1
             xs_inv = x * s_inv
-            A_XS_inv = A * xs_inv[None]
+            if isinstance(A, spmatrix):
+                A_XS_inv = A.multiply(xs_inv[None])
+            else:
+                A_XS_inv = A * xs_inv[None]
             M = A_XS_inv @ A.transpose()
             rhs = b - A @ x + A_XS_inv @ c - M @ lambd - A @ s_inv * sigma * _mu
 
             # solve M @ x = rhs
-            if lin_solver == 'cho':
-                c_and_lower = cho_factor(M)
-                grad_lambda = cho_solve(c_and_lower, rhs)
-            elif lin_solver == 'lstsq':
-                grad_lambda = lstsq(M, rhs)[0]
+            if isinstance(M, spmatrix):
+                grad_lambda = sp_cg(M, rhs)[0]
             else:
-                raise NotImplementedError
+                if lin_solver == 'cho':
+                    c_and_lower = cho_factor(M)
+                    grad_lambda = cho_solve(c_and_lower, rhs)
+                elif lin_solver == 'lstsq':
+                    grad_lambda = lstsq(M, rhs)[0]
+                else:
+                    raise NotImplementedError
 
             AT_lambda_plut_dlambda = A.transpose() @ (lambd + grad_lambda)
             grad_s = - AT_lambda_plut_dlambda - s + c

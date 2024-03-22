@@ -14,12 +14,10 @@ class LPDataset(InMemoryDataset):
     def __init__(
         self,
         root: str,
-        lappe: int = 0,
         transform: Optional[Callable] = None,
         pre_transform: Optional[Callable] = None,
         pre_filter: Optional[Callable] = None,
     ):
-        self.extra_path = f'{lappe}lap_'
         super().__init__(root, transform, pre_transform, pre_filter)
         path = osp.join(self.processed_dir, 'data.pt')
         self.data, self.slices = torch.load(path)
@@ -30,7 +28,7 @@ class LPDataset(InMemoryDataset):
 
     @property
     def processed_dir(self) -> str:
-        return osp.join(self.root, 'processed_' + self.extra_path)
+        return osp.join(self.root, 'processed')
 
     @property
     def processed_file_names(self) -> List[str]:
@@ -58,6 +56,8 @@ class LPDataset(InMemoryDataset):
                 data = HeteroData(
                     cons={'x': torch.cat([A.mean(1, keepdims=True),
                                           A.std(1, keepdims=True)], dim=1)},
+                    slack={'x': torch.cat([A.mean(0, keepdims=True),
+                                          A.std(0, keepdims=True)], dim=0).T},
                     vals={'x': torch.cat([A.mean(0, keepdims=True),
                                           A.std(0, keepdims=True)], dim=0).T},
                     obj={'x': torch.cat([c.mean(0, keepdims=True),
@@ -65,14 +65,24 @@ class LPDataset(InMemoryDataset):
 
                     cons__to__vals={'edge_index': torch.vstack(torch.where(A)),
                                     'edge_attr': A[torch.where(A)][:, None]},
+                    cons__to__slack={'edge_index': torch.vstack(torch.where(A)),
+                                     'edge_attr': A[torch.where(A)][:, None]},
                     vals__to__cons={'edge_index': torch.vstack(torch.where(A.T)),
                                     'edge_attr': A.T[torch.where(A.T)][:, None]},
+                    slack__to__cons={'edge_index': torch.vstack(torch.where(A.T)),
+                                     'edge_attr': A.T[torch.where(A.T)][:, None]},
                     vals__to__obj={'edge_index': torch.vstack([torch.arange(A.shape[1]),
                                                                torch.zeros(A.shape[1], dtype=torch.long)]),
                                    'edge_attr': c[:, None]},
+                    slack__to__obj={'edge_index': torch.vstack([torch.arange(A.shape[1]),
+                                                               torch.zeros(A.shape[1], dtype=torch.long)]),
+                                    'edge_attr': c[:, None]},
                     obj__to__vals={'edge_index': torch.vstack([torch.zeros(A.shape[1], dtype=torch.long),
                                                                torch.arange(A.shape[1])]),
                                    'edge_attr': c[:, None]},
+                    obj__to__slack={'edge_index': torch.vstack([torch.zeros(A.shape[1], dtype=torch.long),
+                                                               torch.arange(A.shape[1])]),
+                                    'edge_attr': c[:, None]},
                     cons__to__obj={'edge_index': torch.vstack([torch.arange(A.shape[0]),
                                                                torch.zeros(A.shape[0], dtype=torch.long)]),
                                    'edge_attr': b[:, None]},
@@ -80,9 +90,9 @@ class LPDataset(InMemoryDataset):
                                                                torch.arange(A.shape[0])]),
                                    'edge_attr': b[:, None]},
 
-                    solution=torch.from_numpy(x).to(torch.float),
-                    lam=torch.from_numpy(lam).to(torch.float),
-                    s=torch.from_numpy(s).to(torch.float),
+                    x_solution=torch.from_numpy(x).to(torch.float),
+                    l_solution=torch.from_numpy(lam).to(torch.float),
+                    s_solution=torch.from_numpy(s).to(torch.float),
                     c=c,
                     b=b,
                     A_row=row,

@@ -13,7 +13,7 @@ from tqdm import tqdm
 import wandb
 
 from data.dataset import LPDataset
-from data.utils import args_set_bool, HeteroAddLaplacianEigenvectorPE, random_start_point
+from data.utils import args_set_bool, random_start_point
 from models.hetero_gnn import TripartiteHeteroGNN
 from trainer import Trainer
 
@@ -40,12 +40,10 @@ def args_parser():
 
     # model related
     parser.add_argument('--conv', type=str, default='gcnconv')
-    parser.add_argument('--lappe', type=int, default=0)
     parser.add_argument('--hidden', type=int, default=128)
     parser.add_argument('--num_conv_layers', type=int, default=4)
     parser.add_argument('--num_pred_layers', type=int, default=2)
     parser.add_argument('--num_mlp_layers', type=int, default=2, help='mlp layers within GENConv')
-    parser.add_argument('--share_conv_weight', type=str, default='false')
     parser.add_argument('--conv_sequence', type=str, default='cov')
     parser.add_argument('--norm', type=str, default='graphnorm')  # empirically better
     parser.add_argument('--use_res', type=str, default='false')  # does not help
@@ -75,9 +73,7 @@ if __name__ == '__main__':
                entity="chendiqian")  # use your own entity
 
     dataset = LPDataset(args.datapath,
-                        lappe=args.lappe,
-                        transform=partial(random_start_point, maxiter=args.train_ipm_iter),
-                        pre_transform=HeteroAddLaplacianEigenvectorPE(k=args.lappe))
+                        transform=partial(random_start_point, maxiter=args.train_ipm_iter))
 
     train_loader = DataLoader(dataset[:int(len(dataset) * 0.8)],
                               batch_size=args.batchsize,
@@ -100,13 +96,11 @@ if __name__ == '__main__':
         if args.ckpt:
             os.mkdir(os.path.join(log_folder_name, f'run{run}'))
         model = TripartiteHeteroGNN(conv=args.conv,
-                                    pe_dim=args.lappe,
                                     hid_dim=args.hidden,
                                     num_conv_layers=args.num_conv_layers,
                                     num_pred_layers=args.num_pred_layers,
                                     num_mlp_layers=args.num_mlp_layers,
                                     dropout=args.dropout,
-                                    share_conv_weight=args.share_conv_weight,
                                     norm=args.norm,
                                     use_res=args.use_res,
                                     conv_sequence=args.conv_sequence).to(device)

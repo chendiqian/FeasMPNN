@@ -73,86 +73,81 @@ def get_conv_layer(conv: str,
 class TripartiteHeteroGNN(torch.nn.Module):
     def __init__(self,
                  conv,
-                 pe_dim,
                  hid_dim,
                  num_conv_layers,
                  num_pred_layers,
                  num_mlp_layers,
                  dropout,
-                 share_conv_weight,
                  norm,
                  use_res,
                  conv_sequence='parallel'):
         super().__init__()
 
         self.dropout = dropout
-        self.share_conv_weight = share_conv_weight
         self.num_layers = num_conv_layers
         self.use_res = use_res
 
-        if pe_dim > 0:
-            self.pe_encoder = torch.nn.ModuleDict({
-                'vals': MLP([-1, hid_dim, hid_dim]),
-                'cons': MLP([-1, hid_dim, hid_dim]),
-                'obj': MLP([-1, hid_dim, hid_dim])})
-            in_emb_dim = hid_dim
-        else:
-            self.pe_encoder = None
-            in_emb_dim = 2 * hid_dim
-
-        self.encoder = torch.nn.ModuleDict({'vals': MLP([-1, hid_dim, in_emb_dim], norm=norm),
-                                            'cons': MLP([-1, hid_dim, in_emb_dim], norm=norm),
-                                            'obj': MLP([-1, hid_dim, in_emb_dim], norm=None)})
-        self.start_pos_encoder = MLP([-1, hid_dim, in_emb_dim], norm=None)  # shouldn't use batchnorm imo
+        self.encoder = torch.nn.ModuleDict({'vals': MLP([-1, hid_dim, hid_dim], norm=norm),
+                                            'slack': MLP([-1, hid_dim, hid_dim], norm=norm),
+                                            'cons': MLP([-1, hid_dim, hid_dim], norm=norm),
+                                            'obj': MLP([-1, hid_dim, hid_dim], norm=None)})
+        self.start_pos_encoder = torch.nn.ModuleDict(
+            {'x': MLP([-1, hid_dim, hid_dim], norm=None),
+             'l': MLP([-1, hid_dim, hid_dim], norm=None),
+             's': MLP([-1, hid_dim, hid_dim], norm=None)})
 
         c2v, v2c, v2o, o2v, c2o, o2c = strseq2rank(conv_sequence)
         self.gcns = torch.nn.ModuleList()
         for layer in range(num_conv_layers):
-            if layer == 0 or not share_conv_weight:
-                self.gcns.append(
-                    HeteroConv({
-                        ('cons', 'to', 'vals'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), c2v),
-                        ('vals', 'to', 'cons'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), v2c),
-                        ('vals', 'to', 'obj'): (get_conv_layer(conv, hid_dim, num_mlp_layers, None), v2o),
-                        ('obj', 'to', 'vals'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), o2v),
-                        ('cons', 'to', 'obj'): (get_conv_layer(conv, hid_dim, num_mlp_layers, None), c2o),
-                        ('obj', 'to', 'cons'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), o2c),
-                    }, aggr='cat'))
+            self.gcns.append(
+                HeteroConv({
+                    ('cons', 'to', 'vals'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), c2v),
+                    ('cons', 'to', 'slack'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), c2v),
+                    ('vals', 'to', 'cons'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), v2c),
+                    ('slack', 'to', 'cons'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), v2c),
+                    ('vals', 'to', 'obj'): (get_conv_layer(conv, hid_dim, num_mlp_layers, None), v2o),
+                    ('slack', 'to', 'obj'): (get_conv_layer(conv, hid_dim, num_mlp_layers, None), v2o),
+                    ('obj', 'to', 'vals'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), o2v),
+                    ('obj', 'to', 'slack'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), o2v),
+                    ('cons', 'to', 'obj'): (get_conv_layer(conv, hid_dim, num_mlp_layers, None), c2o),
+                    ('obj', 'to', 'cons'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), o2c),
+                }, aggr='cat'))
 
-        self.pred_vals = MLP([-1] + [hid_dim] * (num_pred_layers - 1) + [1])
-        # self.pred_cons = MLP([-1] + [hid_dim] * (num_pred_layers - 1) + [1])
+        self.pred_x = MLP([-1] + [hid_dim] * (num_pred_layers - 1) + [1])
+        self.pred_l = MLP([-1] + [hid_dim] * (num_pred_layers - 1) + [1])
+        self.pred_s = MLP([-1] + [hid_dim] * (num_pred_layers - 1) + [1])
 
     def forward(self, data):
         batch_dict = data.batch_dict
         x_dict, edge_index_dict, edge_attr_dict = data.x_dict, data.edge_index_dict, data.edge_attr_dict
-        for k in ['cons', 'vals', 'obj']:
-            x_emb = self.encoder[k](x_dict[k])
-            if self.pe_encoder is not None and hasattr(data[k], 'laplacian_eigenvector_pe'):
-                pe_emb = 0.5 * (self.pe_encoder[k](data[k].laplacian_eigenvector_pe) +
-                                self.pe_encoder[k](-data[k].laplacian_eigenvector_pe))
-                x_emb = torch.cat([x_emb, pe_emb], dim=1)
-            if k == 'vals' and hasattr(data, 'start_point'):
-                start_pos = self.start_pos_encoder(data.start_point[:, None])
-                x_emb = torch.cat([x_emb, start_pos], dim=1)
-            x_dict[k] = x_emb
+        for k in ['cons', 'vals', 'obj', 'slack']:
+            x_dict[k] = self.encoder[k](x_dict[k])
+
+        if hasattr(data, 'x_start'):
+            x_dict['vals'] = torch.cat([x_dict['vals'],
+                                        self.start_pos_encoder['x'](data.x_start[:, None])], dim=1)
+        if hasattr(data, 'l_start'):
+            x_dict['cons'] = torch.cat([x_dict['cons'],
+                                        self.start_pos_encoder['l'](data.l_start[:, None])], dim=1)
+        if hasattr(data, 's_start'):
+            x_dict['slack'] = torch.cat([x_dict['slack'],
+                                        self.start_pos_encoder['s'](data.s_start[:, None])], dim=1)
 
         hiddens = []
         for i in range(self.num_layers):
-            if self.share_conv_weight:
-                i = 0
-
             h1 = x_dict
             h2 = self.gcns[i](x_dict, edge_index_dict, edge_attr_dict, batch_dict)
             keys = h2.keys()
-            hiddens.append((h2['cons'], h2['vals']))
-            if self.use_res:
-                h = {k: (F.relu(h2[k]) + h1[k]) / 2 for k in keys}
-            else:
-                h = {k: F.relu(h2[k]) for k in keys}
-            h = {k: F.dropout(h[k], p=self.dropout, training=self.training) for k in keys}
-            x_dict = h
+            hiddens.append((h2['cons'], h2['vals'], h2['slack']))
 
-        # cons, vals = zip(*hiddens)
-        vals = hiddens[-1][1]
-        vals = self.pred_vals(vals)  # vals * 1
-        return vals.squeeze()
+            if i < self.num_layers - 1:
+                if self.use_res:
+                    x_dict = {k: (F.relu(h2[k]) + h1[k]) / 2 for k in keys}
+                else:
+                    x_dict = {k: F.relu(h2[k]) for k in keys}
+                x_dict = {k: F.dropout(F.relu(x_dict[k]), p=self.dropout, training=self.training) for k in keys}
+
+        x = self.pred_x(hiddens[-1][1])
+        l = self.pred_l(hiddens[-1][0])
+        s = self.pred_s(hiddens[-1][2])
+        return x.squeeze(), l.squeeze(), s.squeeze()

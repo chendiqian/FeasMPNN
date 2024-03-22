@@ -7,6 +7,7 @@ from torch_geometric.data.hetero_data import to_homogeneous_edge_index
 from torch_geometric.transforms import AddLaplacianEigenvectorPE
 
 from solver.linprog_ip import _ip_hsd
+from solver.customized_solver import ipm_overleaf
 
 
 def args_set_bool(args: Dict):
@@ -38,23 +39,31 @@ def random_start_point(graph: Data, maxiter: int):
     b = graph.b.numpy()
     c = graph.c.numpy()
 
-    x, status, message, iteration, callback_outputs = _ip_hsd(A, b, c, 0.,
-                                                              alpha0=0.99995, beta=0.1,
-                                                              maxiter=random.randint(1, maxiter),
-                                                              disp=False, tol=1.e-6, sparse=False,
-                                                              lstsq=False, sym_pos=True, cholesky=None,
-                                                              pc=True, ip=True, permc_spec='MMD_AT_PLUS_A',
-                                                              callback=None,
-                                                              postsolve_args=None,
-                                                              rand_start=True)
-    x = x[:graph.c.shape[0]]
-    graph.start_point = torch.from_numpy(x).to(torch.float)
+    sol = ipm_overleaf(c, A, b, 'rand', 'cho', random.randint(1, maxiter))
+    x, l, s = sol['x'], sol['lambd'], sol['s']
+
+    # x, status, message, iteration, callback_outputs = _ip_hsd(A, b, c, 0.,
+    #                                                           alpha0=0.99995, beta=0.1,
+    #                                                           maxiter=random.randint(1, maxiter),
+    #                                                           disp=False, tol=1.e-6, sparse=False,
+    #                                                           lstsq=False, sym_pos=True, cholesky=None,
+    #                                                           pc=True, ip=True, permc_spec='MMD_AT_PLUS_A',
+    #                                                           callback=None,
+    #                                                           postsolve_args=None,
+    #                                                           rand_start=True)
+    # x = x[:graph.c.shape[0]]
+
+    graph.x_start = torch.from_numpy(x).to(torch.float)
+    graph.l_start = torch.from_numpy(l).to(torch.float)
+    graph.s_start = torch.from_numpy(s).to(torch.float)
 
     # direction
-    label = graph.solution - graph.start_point
-    # we have to normalize
-    label /= label.abs().max() + 1.e-7
-    graph.label = label
+    x_direction = graph.x_solution - graph.x_start
+    graph.x_label = x_direction / x_direction.abs().max() + 1.e-7
+    l_direction = graph.l_solution - graph.l_start
+    graph.l_label = l_direction / l_direction.abs().max() + 1.e-7
+    s_direction = graph.s_solution - graph.s_start
+    graph.s_label = s_direction / s_direction.abs().max() + 1.e-7
 
     # remove a, b, c unnecessary
     graph.A_row = None

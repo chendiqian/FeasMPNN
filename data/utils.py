@@ -95,13 +95,13 @@ def collate_fn_lp(graphs: List[Data]):
     new_batch['slack'].x = new_batch.x_dict['vals']
     new_batch['slack'].batch = new_batch.batch_dict['vals']
 
-    new_batch[('cons', 'to', 'slack')].edge_index_dict = new_batch.edge_index_dict[('cons', 'to', 'vals')]
-    new_batch[('slack', 'to', 'cons')].edge_index_dict = new_batch.edge_index_dict[('vals', 'to', 'cons')]
-    new_batch[('slack', 'to', 'obj')].edge_index_dict = new_batch.edge_index_dict[('vals', 'to', 'obj')]
-    new_batch[('obj', 'to', 'slack')].edge_index_dict = new_batch.edge_index_dict[('obj', 'to', 'vals')]
+    new_batch[('cons', 'to', 'slack')].edge_index = new_batch.edge_index_dict[('cons', 'to', 'vals')]
+    new_batch[('slack', 'to', 'cons')].edge_index = new_batch.edge_index_dict[('vals', 'to', 'cons')]
+    new_batch[('slack', 'to', 'obj')].edge_index = new_batch.edge_index_dict[('vals', 'to', 'obj')]
+    new_batch[('obj', 'to', 'slack')].edge_index = new_batch.edge_index_dict[('obj', 'to', 'vals')]
 
-    new_batch[('cons', 'to', 'slack')].edge_attr_dict = new_batch.edge_attr_dict[('cons', 'to', 'vals')]
-    new_batch[('slack', 'to', 'cons')].edge_attr_dict = new_batch.edge_attr_dict[('vals', 'to', 'cons')]
-    new_batch[('slack', 'to', 'obj')].edge_attr_dict = new_batch.edge_attr_dict[('vals', 'to', 'obj')]
-    new_batch[('obj', 'to', 'slack')].edge_attr_dict = new_batch.edge_attr_dict[('obj', 'to', 'vals')]
+    new_batch[('cons', 'to', 'slack')].edge_attr = new_batch.edge_attr_dict[('cons', 'to', 'vals')]
+    new_batch[('slack', 'to', 'cons')].edge_attr = new_batch.edge_attr_dict[('vals', 'to', 'cons')]
+    new_batch[('slack', 'to', 'obj')].edge_attr = new_batch.edge_attr_dict[('vals', 'to', 'obj')]
+    new_batch[('obj', 'to', 'slack')].edge_attr = new_batch.edge_attr_dict[('obj', 'to', 'vals')]
     return new_batch

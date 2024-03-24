@@ -91,17 +91,17 @@ class HeteroAddLaplacianEigenvectorPE:
 def collate_fn_lp(graphs: List[Data]):
     new_batch = Batch.from_data_list(graphs)
 
-    # set for slack variable, they are the same as vals
-    new_batch.batch_dict['slack'] = new_batch.batch_dict['vals']
-    new_batch.x_dict['slack'] = new_batch.x_dict['vals']
+    # set for slack variable, they are the same as vals]
+    new_batch['slack'].x = new_batch.x_dict['vals']
+    new_batch['slack'].batch = new_batch.batch_dict['vals']
 
-    new_batch.edge_index_dict[('cons', 'to', 'slack')] = new_batch.edge_index_dict[('cons', 'to', 'vals')]
-    new_batch.edge_index_dict[('slack', 'to', 'cons')] = new_batch.edge_index_dict[('vals', 'to', 'cons')]
-    new_batch.edge_index_dict[('slack', 'to', 'obj')] = new_batch.edge_index_dict[('vals', 'to', 'obj')]
-    new_batch.edge_index_dict[('obj', 'to', 'slack')] = new_batch.edge_index_dict[('obj', 'to', 'vals')]
+    new_batch[('cons', 'to', 'slack')].edge_index_dict = new_batch.edge_index_dict[('cons', 'to', 'vals')]
+    new_batch[('slack', 'to', 'cons')].edge_index_dict = new_batch.edge_index_dict[('vals', 'to', 'cons')]
+    new_batch[('slack', 'to', 'obj')].edge_index_dict = new_batch.edge_index_dict[('vals', 'to', 'obj')]
+    new_batch[('obj', 'to', 'slack')].edge_index_dict = new_batch.edge_index_dict[('obj', 'to', 'vals')]
 
-    new_batch.edge_attr_dict[('cons', 'to', 'slack')] = new_batch.edge_attr_dict[('cons', 'to', 'vals')]
-    new_batch.edge_attr_dict[('slack', 'to', 'cons')] = new_batch.edge_attr_dict[('vals', 'to', 'cons')]
-    new_batch.edge_attr_dict[('slack', 'to', 'obj')] = new_batch.edge_attr_dict[('vals', 'to', 'obj')]
-    new_batch.edge_attr_dict[('obj', 'to', 'slack')] = new_batch.edge_attr_dict[('obj', 'to', 'vals')]
+    new_batch[('cons', 'to', 'slack')].edge_attr_dict = new_batch.edge_attr_dict[('cons', 'to', 'vals')]
+    new_batch[('slack', 'to', 'cons')].edge_attr_dict = new_batch.edge_attr_dict[('vals', 'to', 'cons')]
+    new_batch[('slack', 'to', 'obj')].edge_attr_dict = new_batch.edge_attr_dict[('vals', 'to', 'obj')]
+    new_batch[('obj', 'to', 'slack')].edge_attr_dict = new_batch.edge_attr_dict[('obj', 'to', 'vals')]
     return new_batch

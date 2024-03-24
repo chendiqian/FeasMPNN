@@ -120,18 +120,14 @@ class TripartiteHeteroGNN(torch.nn.Module):
     def forward(self, data):
         batch_dict = data.batch_dict
         x_dict, edge_index_dict, edge_attr_dict = data.x_dict, data.edge_index_dict, data.edge_attr_dict
-        for k in ['cons', 'vals', 'obj', 'slack']:
-            x_dict[k] = self.encoder[k](x_dict[k])
 
-        if hasattr(data, 'x_start'):
-            x_dict['vals'] = torch.cat([x_dict['vals'],
-                                        self.start_pos_encoder['x'](data.x_start[:, None])], dim=1)
-        if hasattr(data, 'l_start'):
-            x_dict['cons'] = torch.cat([x_dict['cons'],
-                                        self.start_pos_encoder['l'](data.l_start[:, None])], dim=1)
-        if hasattr(data, 's_start'):
-            x_dict['slack'] = torch.cat([x_dict['slack'],
-                                        self.start_pos_encoder['s'](data.s_start[:, None])], dim=1)
+        x_dict['cons'] = torch.cat([self.encoder['cons'](x_dict['cons']),
+                                    self.start_pos_encoder['l'](data.l_start[:, None])], dim=1)
+        x_dict['vals'] = torch.cat([self.encoder['vals'](x_dict['vals']),
+                                    self.start_pos_encoder['x'](data.x_start[:, None])], dim=1)
+        x_dict['slack'] = torch.cat([self.encoder['slack'](x_dict['slack']),
+                                    self.start_pos_encoder['s'](data.s_start[:, None])], dim=1)
+        x_dict['obj'] = self.encoder['obj'](x_dict['obj'])
 
         hiddens = []
         for i in range(self.num_layers):

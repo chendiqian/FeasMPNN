@@ -20,17 +20,6 @@ def args_set_bool(args: Dict):
     return args
 
 
-def collate_fn_ip(graphs: List[Data]):
-    new_batch = Batch.from_data_list(graphs)
-    row_bias = torch.hstack([new_batch.A_num_row.new_zeros(1), new_batch.A_num_row[:-1]]).cumsum(dim=0)
-    row_bias = torch.repeat_interleave(row_bias, new_batch.A_nnz)
-    new_batch.A_row += row_bias
-    col_bias = torch.hstack([new_batch.A_num_col.new_zeros(1), new_batch.A_num_col[:-1]]).cumsum(dim=0)
-    col_bias = torch.repeat_interleave(col_bias, new_batch.A_nnz)
-    new_batch.A_col += col_bias
-    return new_batch
-
-
 def random_start_point(graph: Data, maxiter: int):
     A = SparseTensor(row=graph.A_row,
                      col=graph.A_col,
@@ -97,3 +86,22 @@ class HeteroAddLaplacianEigenvectorPE:
         data['vals'].laplacian_eigenvector_pe = vals_lap
         data['obj'].laplacian_eigenvector_pe = obj_lap
         return data
+
+
+def collate_fn_lp(graphs: List[Data]):
+    new_batch = Batch.from_data_list(graphs)
+
+    # set for slack variable, they are the same as vals
+    new_batch.batch_dict['slack'] = new_batch.batch_dict['vals']
+    new_batch.x_dict['slack'] = new_batch.x_dict['vals']
+
+    new_batch.edge_index_dict[('cons', 'to', 'slack')] = new_batch.edge_index_dict[('cons', 'to', 'vals')]
+    new_batch.edge_index_dict[('slack', 'to', 'cons')] = new_batch.edge_index_dict[('vals', 'to', 'cons')]
+    new_batch.edge_index_dict[('slack', 'to', 'obj')] = new_batch.edge_index_dict[('vals', 'to', 'obj')]
+    new_batch.edge_index_dict[('obj', 'to', 'slack')] = new_batch.edge_index_dict[('obj', 'to', 'vals')]
+
+    new_batch.edge_attr_dict[('cons', 'to', 'slack')] = new_batch.edge_attr_dict[('cons', 'to', 'vals')]
+    new_batch.edge_attr_dict[('slack', 'to', 'cons')] = new_batch.edge_attr_dict[('vals', 'to', 'cons')]
+    new_batch.edge_attr_dict[('slack', 'to', 'obj')] = new_batch.edge_attr_dict[('vals', 'to', 'obj')]
+    new_batch.edge_attr_dict[('obj', 'to', 'slack')] = new_batch.edge_attr_dict[('obj', 'to', 'vals')]
+    return new_batch

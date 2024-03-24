@@ -8,12 +8,12 @@ import copy
 import numpy as np
 import torch
 from torch import optim
-from torch_geometric.loader import DataLoader
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 import wandb
 
 from data.dataset import LPDataset
-from data.utils import args_set_bool, random_start_point
+from data.utils import args_set_bool, random_start_point, collate_fn_lp
 from models.hetero_gnn import TripartiteHeteroGNN
 from trainer import Trainer
 
@@ -77,13 +77,16 @@ if __name__ == '__main__':
 
     train_loader = DataLoader(dataset[:int(len(dataset) * 0.8)],
                               batch_size=args.batchsize,
-                              shuffle=True)
+                              shuffle=True,
+                              collate_fn=collate_fn_lp)
     val_loader = DataLoader(dataset[int(len(dataset) * 0.8):int(len(dataset) * 0.9)],
                             batch_size=args.batchsize,
-                            shuffle=False)
+                            shuffle=False,
+                            collate_fn=collate_fn_lp)
     test_loader = DataLoader(dataset[int(len(dataset) * 0.9):],
-                            batch_size=args.batchsize,
-                            shuffle=False)
+                             batch_size=args.batchsize,
+                             shuffle=False,
+                             collate_fn=collate_fn_lp)
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

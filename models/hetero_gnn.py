@@ -77,6 +77,8 @@ class TripartiteHeteroGNN(torch.nn.Module):
                  num_conv_layers,
                  num_pred_layers,
                  num_mlp_layers,
+                 pred_all,
+                 share_pred,
                  dropout,
                  norm,
                  use_res,
@@ -86,6 +88,8 @@ class TripartiteHeteroGNN(torch.nn.Module):
         self.dropout = dropout
         self.num_layers = num_conv_layers
         self.use_res = use_res
+        self.pred_all = pred_all
+        self.share_pred = share_pred
 
         self.encoder = torch.nn.ModuleDict({'vals': MLP([-1, hid_dim, hid_dim], norm=norm),
                                             'cons': MLP([-1, hid_dim, hid_dim], norm=norm),
@@ -105,7 +109,11 @@ class TripartiteHeteroGNN(torch.nn.Module):
                     ('obj', 'to', 'cons'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), o2c),
                 }, aggr='cat'))
 
-        self.pred_x = MLP([-1] + [hid_dim] * (num_pred_layers - 1) + [1])
+        if pred_all and not share_pred:
+            self.predictor = torch.nn.ModuleList([MLP([-1] + [hid_dim] * (num_pred_layers - 1) + [1], norm=None)
+                                               for _ in range(num_conv_layers)])
+        else:
+            self.predictor = MLP([-1] + [hid_dim] * (num_pred_layers - 1) + [1], norm=None)
 
     def forward(self, data):
         batch_dict = data.batch_dict
@@ -121,7 +129,7 @@ class TripartiteHeteroGNN(torch.nn.Module):
             h1 = x_dict
             h2 = self.gcns[i](x_dict, edge_index_dict, edge_attr_dict, batch_dict)
             keys = h2.keys()
-            hiddens.append((h2['cons'], h2['vals']))
+            hiddens.append(h2['vals'])
 
             if i < self.num_layers - 1:
                 if self.use_res:
@@ -130,5 +138,13 @@ class TripartiteHeteroGNN(torch.nn.Module):
                     x_dict = {k: F.relu(h2[k]) for k in keys}
                 x_dict = {k: F.dropout(F.relu(x_dict[k]), p=self.dropout, training=self.training) for k in keys}
 
-        x = self.pred_x(hiddens[-1][1])
-        return x.squeeze()
+        if not self.pred_all:
+            x = self.predictor(hiddens[-1])   # nnodes x 1
+        else:
+            if self.share_pred:
+                x = torch.stack(hiddens, dim=1)  # nnodes * layers * dim
+                x = self.predictor(x).squeeze()  # nnodes x layers
+            else:
+                # nnodes x layers
+                x = torch.stack([self.predictor[i](hiddens[i]).squeeze() for i in range(self.num_layers)], dim=1)
+        return x

@@ -15,9 +15,9 @@ class Trainer:
         self.loss_type = loss_type
         self.cos_metric = torch.nn.CosineEmbeddingLoss(reduction='none')
         if loss_type == 'l2':
-            self.loss_func = torch.nn.MSELoss(reduction='none')
+            self.loss_func = lambda x, y: (x - y) ** 2
         elif loss_type == 'l1':
-            self.loss_func = torch.nn.L1Loss(reduction='none')
+            self.loss_func = lambda x, y: (x - y).abs()
         elif loss_type == 'cos':
             pass
         else:
@@ -78,14 +78,21 @@ class Trainer:
         return val_losses.item() / num_graphs, cos_sims.item() / num_graphs
 
     def get_loss(self, pred, label, batch):
-        # cosine similarity
-        pred_batch, _ = to_dense_batch(pred, batch)
-        label_batch, _ = to_dense_batch(label, batch)
-        cos = self.cos_metric(pred_batch, label_batch, pred_batch.new_ones(pred_batch.shape[0]))
+        """
+
+        pred: nnodes x layers
+        label: nnodes
+        """
+        # cosine similarity, only on the last layer
+        pred_batch, _ = to_dense_batch(pred[:, -1], batch)  # batchsize x max_nnodes
+        label_batch = to_dense_batch(label, batch)[0]   # batchsize x max_nnodes
+        target = pred_batch.new_ones(pred_batch.shape[0])
+        # cos = torch.vmap(self.cos_metric, in_dims=(2, None, None), out_dims=1)(pred_batch, label_batch, target)
+        cos = self.cos_metric(pred_batch, label_batch, target)
         cos = cos.mean()
 
         if self.loss_type in ['l1', 'l2']:
-            loss = self.loss_func(pred, label)
+            loss = self.loss_func(pred, label[..., None])  # nnodes x layers
             # mean over each variable in an instance, then mean over instances
             loss = scatter(loss, batch, dim=0, reduce='mean').mean()
         else:

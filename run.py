@@ -48,6 +48,8 @@ def args_parser():
     parser.add_argument('--norm', type=str, default='graphnorm')  # empirically better
     parser.add_argument('--use_res', type=str, default='false')  # does not help
     parser.add_argument('--dropout', type=float, default=0.)  # must
+    parser.add_argument('--pred_all', type=str, default='false')
+    parser.add_argument('--share_pred', type=str, default='false')
 
     return parser.parse_args()
 
@@ -103,6 +105,8 @@ if __name__ == '__main__':
                                     num_conv_layers=args.num_conv_layers,
                                     num_pred_layers=args.num_pred_layers,
                                     num_mlp_layers=args.num_mlp_layers,
+                                    pred_all=args.pred_all,
+                                    share_pred=args.share_pred,
                                     dropout=args.dropout,
                                     norm=args.norm,
                                     use_res=args.use_res,

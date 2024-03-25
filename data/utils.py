@@ -7,7 +7,6 @@ from torch_geometric.data.hetero_data import to_homogeneous_edge_index
 from torch_geometric.transforms import AddLaplacianEigenvectorPE
 
 from solver.linprog_ip import _ip_hsd
-from solver.customized_solver import ipm_overleaf
 
 
 def args_set_bool(args: Dict):
@@ -21,38 +20,31 @@ def args_set_bool(args: Dict):
 
 
 def random_start_point(graph: Data, maxiter: int):
-    A = SparseTensor(row=graph.A_row,
-                     col=graph.A_col,
-                     value=graph.A_val, is_sorted=True,
+    A = SparseTensor(row=graph.A_full_row,
+                     col=graph.A_full_col,
+                     value=graph.A_full_val, is_sorted=True,
                      trust_data=True).to_dense().numpy()
-    b = graph.b.numpy()
-    c = graph.c.numpy()
+    b = graph.b_full.numpy()
+    c = graph.c_full.numpy()
 
-    sol = ipm_overleaf(c, A, b, 'rand', 'cho', random.randint(1, maxiter))
-    x, l, s = sol['x'], sol['lambd'], sol['s']
+    n_x = graph.A_col.max() + 1
 
-    # x, status, message, iteration, callback_outputs = _ip_hsd(A, b, c, 0.,
-    #                                                           alpha0=0.99995, beta=0.1,
-    #                                                           maxiter=random.randint(1, maxiter),
-    #                                                           disp=False, tol=1.e-6, sparse=False,
-    #                                                           lstsq=False, sym_pos=True, cholesky=None,
-    #                                                           pc=True, ip=True, permc_spec='MMD_AT_PLUS_A',
-    #                                                           callback=None,
-    #                                                           postsolve_args=None,
-    #                                                           rand_start=True)
-    # x = x[:graph.c.shape[0]]
+    x, status, message, iteration, callback_outputs = _ip_hsd(A, b, c, 0.,
+                                                              alpha0=0.99995, beta=0.1,
+                                                              maxiter=random.randint(0, maxiter),
+                                                              disp=False, tol=1.e-6, sparse=False,
+                                                              lstsq=False, sym_pos=True, cholesky=None,
+                                                              pc=True, ip=True, permc_spec='MMD_AT_PLUS_A',
+                                                              callback=None,
+                                                              postsolve_args=None,
+                                                              rand_start=True)
+    x = x[:n_x]
 
     graph.x_start = torch.from_numpy(x).to(torch.float)
-    graph.l_start = torch.from_numpy(l).to(torch.float)
-    graph.s_start = torch.from_numpy(s).to(torch.float)
 
     # direction
     x_direction = graph.x_solution - graph.x_start
-    graph.x_label = x_direction / x_direction.abs().max() + 1.e-7
-    l_direction = graph.l_solution - graph.l_start
-    graph.l_label = l_direction / l_direction.abs().max() + 1.e-7
-    s_direction = graph.s_solution - graph.s_start
-    graph.s_label = s_direction / s_direction.abs().max() + 1.e-7
+    graph.x_label = x_direction / (x_direction.abs().max() + 1.e-7)
 
     # remove a, b, c unnecessary
     graph.A_row = None
@@ -60,6 +52,11 @@ def random_start_point(graph: Data, maxiter: int):
     graph.A_val = None
     graph.b = None
     graph.c = None
+    graph.A_full_row = None
+    graph.A_full_col = None
+    graph.A_full_val = None
+    graph.b_full = None
+    graph.c_full = None
     return graph
 
 
@@ -90,18 +87,4 @@ class HeteroAddLaplacianEigenvectorPE:
 
 def collate_fn_lp(graphs: List[Data]):
     new_batch = Batch.from_data_list(graphs)
-
-    # set for slack variable, they are the same as vals]
-    new_batch['slack'].x = new_batch.x_dict['vals']
-    new_batch['slack'].batch = new_batch.batch_dict['vals']
-
-    new_batch[('cons', 'to', 'slack')].edge_index = new_batch.edge_index_dict[('cons', 'to', 'vals')]
-    new_batch[('slack', 'to', 'cons')].edge_index = new_batch.edge_index_dict[('vals', 'to', 'cons')]
-    new_batch[('slack', 'to', 'obj')].edge_index = new_batch.edge_index_dict[('vals', 'to', 'obj')]
-    new_batch[('obj', 'to', 'slack')].edge_index = new_batch.edge_index_dict[('obj', 'to', 'vals')]
-
-    new_batch[('cons', 'to', 'slack')].edge_attr = new_batch.edge_attr_dict[('cons', 'to', 'vals')]
-    new_batch[('slack', 'to', 'cons')].edge_attr = new_batch.edge_attr_dict[('vals', 'to', 'cons')]
-    new_batch[('slack', 'to', 'obj')].edge_attr = new_batch.edge_attr_dict[('vals', 'to', 'obj')]
-    new_batch[('obj', 'to', 'slack')].edge_attr = new_batch.edge_attr_dict[('obj', 'to', 'vals')]
     return new_batch

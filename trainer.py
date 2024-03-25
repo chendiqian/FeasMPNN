@@ -37,12 +37,8 @@ class Trainer:
         num_graphs = 0
         for i, data in enumerate(dataloader):
             data = data.to(self.device)
-            pred_x, pred_l, pred_s = model(data)
-            loss_x, cos_sim_x = self.get_loss(pred_x, data.x_label, data['vals'].batch)
-            loss_l, cos_sim_l = self.get_loss(pred_l, data.l_label, data['cons'].batch)
-            loss_s, cos_sim_s = self.get_loss(pred_s, data.s_label, data['slack'].batch)
-            loss = (loss_x + loss_l + loss_s) / 3.
-            cos_sim = (cos_sim_x + cos_sim_l + cos_sim_s) / 3.
+            pred = model(data)
+            loss, cos_sim = self.get_loss(pred, data.x_label, data['vals'].batch)
 
             train_losses += loss.detach() * data.num_graphs
             cos_sims += cos_sim * data.num_graphs
@@ -73,12 +69,8 @@ class Trainer:
         num_graphs = 0
         for i, data in enumerate(dataloader):
             data = data.to(self.device)
-            pred_x, pred_l, pred_s = model(data)
-            loss_x, cos_sim_x = self.get_loss(pred_x, data.x_label, data['vals'].batch)
-            loss_l, cos_sim_l = self.get_loss(pred_l, data.l_label, data['cons'].batch)
-            loss_s, cos_sim_s = self.get_loss(pred_s, data.s_label, data['slack'].batch)
-            loss = (loss_x + loss_l + loss_s) / 3.
-            cos_sim = (cos_sim_x + cos_sim_l + cos_sim_s) / 3.
+            pred = model(data)
+            loss, cos_sim = self.get_loss(pred, data.x_label, data['vals'].batch)
             val_losses += loss * data.num_graphs
             cos_sims += cos_sim * data.num_graphs
             num_graphs += data.num_graphs

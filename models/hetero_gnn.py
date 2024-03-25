@@ -88,13 +88,9 @@ class TripartiteHeteroGNN(torch.nn.Module):
         self.use_res = use_res
 
         self.encoder = torch.nn.ModuleDict({'vals': MLP([-1, hid_dim, hid_dim], norm=norm),
-                                            'slack': MLP([-1, hid_dim, hid_dim], norm=norm),
                                             'cons': MLP([-1, hid_dim, hid_dim], norm=norm),
                                             'obj': MLP([-1, hid_dim, hid_dim], norm=None)})
-        self.start_pos_encoder = torch.nn.ModuleDict(
-            {'x': MLP([-1, hid_dim, hid_dim], norm=None),
-             'l': MLP([-1, hid_dim, hid_dim], norm=None),
-             's': MLP([-1, hid_dim, hid_dim], norm=None)})
+        self.start_pos_encoder = MLP([-1, hid_dim, hid_dim], norm=None)
 
         c2v, v2c, v2o, o2v, c2o, o2c = strseq2rank(conv_sequence)
         self.gcns = torch.nn.ModuleList()
@@ -102,31 +98,22 @@ class TripartiteHeteroGNN(torch.nn.Module):
             self.gcns.append(
                 HeteroConv({
                     ('cons', 'to', 'vals'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), c2v),
-                    ('cons', 'to', 'slack'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), c2v),
                     ('vals', 'to', 'cons'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), v2c),
-                    ('slack', 'to', 'cons'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), v2c),
                     ('vals', 'to', 'obj'): (get_conv_layer(conv, hid_dim, num_mlp_layers, None), v2o),
-                    ('slack', 'to', 'obj'): (get_conv_layer(conv, hid_dim, num_mlp_layers, None), v2o),
                     ('obj', 'to', 'vals'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), o2v),
-                    ('obj', 'to', 'slack'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), o2v),
                     ('cons', 'to', 'obj'): (get_conv_layer(conv, hid_dim, num_mlp_layers, None), c2o),
                     ('obj', 'to', 'cons'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), o2c),
                 }, aggr='cat'))
 
         self.pred_x = MLP([-1] + [hid_dim] * (num_pred_layers - 1) + [1])
-        self.pred_l = MLP([-1] + [hid_dim] * (num_pred_layers - 1) + [1])
-        self.pred_s = MLP([-1] + [hid_dim] * (num_pred_layers - 1) + [1])
 
     def forward(self, data):
         batch_dict = data.batch_dict
         x_dict, edge_index_dict, edge_attr_dict = data.x_dict, data.edge_index_dict, data.edge_attr_dict
 
-        x_dict['cons'] = torch.cat([self.encoder['cons'](x_dict['cons']),
-                                    self.start_pos_encoder['l'](data.l_start[:, None])], dim=1)
+        x_dict['cons'] = self.encoder['cons'](x_dict['cons'])
         x_dict['vals'] = torch.cat([self.encoder['vals'](x_dict['vals']),
-                                    self.start_pos_encoder['x'](data.x_start[:, None])], dim=1)
-        x_dict['slack'] = torch.cat([self.encoder['slack'](x_dict['slack']),
-                                    self.start_pos_encoder['s'](data.s_start[:, None])], dim=1)
+                                    self.start_pos_encoder(data.x_start[:, None])], dim=1)
         x_dict['obj'] = self.encoder['obj'](x_dict['obj'])
 
         hiddens = []
@@ -134,7 +121,7 @@ class TripartiteHeteroGNN(torch.nn.Module):
             h1 = x_dict
             h2 = self.gcns[i](x_dict, edge_index_dict, edge_attr_dict, batch_dict)
             keys = h2.keys()
-            hiddens.append((h2['cons'], h2['vals'], h2['slack']))
+            hiddens.append((h2['cons'], h2['vals']))
 
             if i < self.num_layers - 1:
                 if self.use_res:
@@ -144,6 +131,4 @@ class TripartiteHeteroGNN(torch.nn.Module):
                 x_dict = {k: F.dropout(F.relu(x_dict[k]), p=self.dropout, training=self.training) for k in keys}
 
         x = self.pred_x(hiddens[-1][1])
-        l = self.pred_l(hiddens[-1][0])
-        s = self.pred_s(hiddens[-1][2])
-        return x.squeeze(), l.squeeze(), s.squeeze()
+        return x.squeeze()

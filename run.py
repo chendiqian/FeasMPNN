@@ -73,7 +73,7 @@ if __name__ == '__main__':
                entity="chendiqian")  # use your own entity
 
     dataset = LPDataset(args.datapath,
-                        transform=partial(random_start_point, maxiter=args.train_ipm_iter))[:10]
+                        transform=partial(random_start_point, maxiter=args.train_ipm_iter))
 
     train_loader = DataLoader(dataset[:int(len(dataset) * 0.8)],
                               batch_size=args.batchsize,

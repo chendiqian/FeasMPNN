@@ -2,5 +2,6 @@
 .ipynb_checkpoints/
 __pycache__/
 wandb/
+logs/
 *.pt
 *.gz

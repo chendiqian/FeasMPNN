@@ -1,0 +1,53 @@
+program: run.py
+#method: bayes
+method: grid
+entity: chendiqian
+project: mis_ineq
+#run_cap: 40
+
+metric:
+  goal: minimize
+  name: test_cos_sim_mean
+
+parameters:
+  runs:
+    value: 1
+  use_wandb:
+    value: True
+
+  datapath:
+    value: ./mis_ineq
+
+  lr:
+    value: 1.e-3
+  epoch:
+    value: 1000
+  batchsize:
+    value: 512
+  losstype:
+    value: l2
+  ckpt:
+    value: false
+
+  num_conv_layers:
+    values:
+      - 4
+      - 6
+      - 8
+    distribution: categorical
+  num_pred_layers:
+    values:
+      - 2
+      - 3
+      - 4
+    distribution: categorical
+  pred_all:
+    values:
+      - true
+      - false
+    distribution: categorical
+  share_pred:
+    values:
+      - true
+      - false
+    distribution: categorical

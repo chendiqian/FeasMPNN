@@ -1,12 +1,11 @@
 from typing import Dict, List
-import random
 import torch
 from torch_sparse import SparseTensor
 from torch_geometric.data import Data, Batch
-from torch_geometric.data.hetero_data import to_homogeneous_edge_index
-from torch_geometric.transforms import AddLaplacianEigenvectorPE
-
+import numpy as np
 from solver.linprog_ip import _ip_hsd
+# from scipy.optimize import linprog
+from scipy.sparse import block_diag
 
 
 def args_set_bool(args: Dict):
@@ -19,32 +18,30 @@ def args_set_bool(args: Dict):
     return args
 
 
-def random_start_point(graph: Data, maxiter: int):
-    A = SparseTensor(row=graph.A_full_row,
-                     col=graph.A_full_col,
-                     value=graph.A_full_val, is_sorted=True,
+def feasible_start_point(graph: Data):
+    A = SparseTensor(row=graph.A_row,
+                     col=graph.A_col,
+                     value=graph.A_val, is_sorted=True,
                      trust_data=True).to_dense().numpy()
-    b = graph.b_full.numpy()
-    c = graph.c_full.numpy()
+    b = graph.b.numpy()
 
-    n_x = graph.A_col.max() + 1
-
-    x, status, message, iteration, callback_outputs = _ip_hsd(A, b, c, 0.,
+    x, status, message, iteration, callback_outputs = _ip_hsd(A, b, np.zeros(A.shape[1]), 0.,
                                                               alpha0=0.99995, beta=0.1,
-                                                              maxiter=random.randint(0, maxiter),
+                                                              maxiter=10,
                                                               disp=False, tol=1.e-6, sparse=False,
                                                               lstsq=False, sym_pos=True, cholesky=None,
                                                               pc=True, ip=True, permc_spec='MMD_AT_PLUS_A',
                                                               callback=None,
                                                               postsolve_args=None,
                                                               rand_start=True)
-    x = x[:n_x]
+
+    # # another option, faster on large instance
+    # rn = np.random.rand(b.shape[0])
+    # x1 = linprog(np.random.randn(A.shape[1]), A_eq=A, b_eq=b + rn, bounds=None).x
+    # x2 = linprog(np.random.randn(A.shape[1]), A_eq=A, b_eq=b - rn, bounds=None).x
+    # x = (x1 + x2) / 2
 
     graph.x_start = torch.from_numpy(x).to(torch.float)
-
-    # direction
-    x_direction = graph.x_solution - graph.x_start
-    graph.x_label = x_direction / (x_direction.abs().max() + 1.e-7)
 
     # remove a, b, c unnecessary
     graph.A_row = None
@@ -52,39 +49,13 @@ def random_start_point(graph: Data, maxiter: int):
     graph.A_val = None
     graph.b = None
     graph.c = None
-    graph.A_full_row = None
-    graph.A_full_col = None
-    graph.A_full_val = None
-    graph.b_full = None
-    graph.c_full = None
     return graph
 
 
-class HeteroAddLaplacianEigenvectorPE:
-    def __init__(self, k, attr_name='laplacian_eigenvector_pe'):
-        self.k = k
-        self.attr_name = attr_name
-
-    def __call__(self, data):
-        if self.k == 0:
-            return data
-        data_homo = data.to_homogeneous()
-        del data_homo.edge_weight
-        lap = AddLaplacianEigenvectorPE(k=self.k, attr_name=self.attr_name)(data_homo).laplacian_eigenvector_pe
-
-        _, node_slices, _ = to_homogeneous_edge_index(data)
-        cons_lap = lap[node_slices['cons'][0]: node_slices['cons'][1], :]
-        cons_lap = (cons_lap - cons_lap.mean(0)) / cons_lap.std(0)
-        vals_lap = lap[node_slices['vals'][0]: node_slices['vals'][1], :]
-        vals_lap = (vals_lap - vals_lap.mean(0)) / vals_lap.std(0)
-        obj_lap = lap[node_slices['obj'][0]: node_slices['obj'][1], :]
-
-        data['cons'].laplacian_eigenvector_pe = cons_lap
-        data['vals'].laplacian_eigenvector_pe = vals_lap
-        data['obj'].laplacian_eigenvector_pe = obj_lap
-        return data
-
-
 def collate_fn_lp(graphs: List[Data]):
+    proj_matrices = [g.pop('proj_matrix').numpy().reshape(g.pop('proj_mat_shape').tolist()) for g in graphs]
     new_batch = Batch.from_data_list(graphs)
+    proj_matrices = block_diag(proj_matrices)
+    proj_matrices = SparseTensor.from_scipy(proj_matrices)
+    new_batch.proj_matrix = proj_matrices
     return new_batch

@@ -8,14 +8,6 @@ import torch
 from torch_geometric.data import Batch, HeteroData, InMemoryDataset
 from tqdm import tqdm
 
-from scipy.optimize._linprog_util import _clean_inputs, _get_Abc
-from collections import namedtuple
-
-
-_LPProblem = namedtuple('_LPProblem',
-                        'c A_ub b_ub A_eq b_eq bounds x0 integrality')
-_LPProblem.__new__.__defaults__ = (None,) * 7  # make c the only required arg
-
 
 class LPDataset(InMemoryDataset):
 
@@ -53,19 +45,17 @@ class LPDataset(InMemoryDataset):
                 ip_pkgs = pickle.load(file)
 
             for ip_idx in tqdm(range(len(ip_pkgs))):
-                (A, b, c, x) = ip_pkgs[ip_idx]
+                (A, b, c, x, proj_matrix) = ip_pkgs[ip_idx]
 
-                lp = _LPProblem(c, A, b, None, None, (0., 1.), None, None)
-                lp = _clean_inputs(lp)
-                A_full, b_full, c_full, *_ = _get_Abc(lp, 0.)
+                # proj_matrix @ x projects onto the nullspace of A
 
                 A = torch.from_numpy(A).to(torch.float)
                 b = torch.from_numpy(b).to(torch.float)
                 c = torch.from_numpy(c).to(torch.float)
 
                 A_row, A_col = torch.where(A)
-                A_full = torch.from_numpy(A_full)
-                A_full_row, A_full_col = torch.where(A_full)
+
+                proj_matrix = torch.from_numpy(proj_matrix).to(torch.float)
 
                 data = HeteroData(
                     cons={'x': torch.cat([A.mean(1, keepdims=True),
@@ -95,15 +85,12 @@ class LPDataset(InMemoryDataset):
                     x_solution=torch.from_numpy(x).to(torch.float),
                     c=c,
                     b=b,
-                    c_full=torch.from_numpy(c_full),
-                    b_full=torch.from_numpy(b_full),
                     A_row=A_row,
                     A_col=A_col,
                     A_val=A[A_row, A_col],
-                    A_full_row=A_full_row,
-                    A_full_col=A_full_col,
-                    A_full_val=A_full[A_full_row, A_full_col]
-                    )
+                    proj_matrix=proj_matrix.reshape(-1),
+                    proj_mat_shape=torch.tensor(proj_matrix.shape)
+                )
 
                 if self.pre_filter is not None:
                     raise NotImplementedError

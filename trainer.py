@@ -38,7 +38,8 @@ class Trainer:
         for i, data in enumerate(dataloader):
             data = data.to(self.device)
             pred = model(data)
-            loss, cos_sim = self.get_loss(pred, data.x_label, data['vals'].batch)
+            # todo: fix the loss
+            loss, cos_sim = self.get_loss(pred, data.x_solution, data['vals'].batch)
 
             train_losses += loss.detach() * data.num_graphs
             cos_sims += cos_sim * data.num_graphs
@@ -70,7 +71,7 @@ class Trainer:
         for i, data in enumerate(dataloader):
             data = data.to(self.device)
             pred = model(data)
-            loss, cos_sim = self.get_loss(pred, data.x_label, data['vals'].batch)
+            loss, cos_sim = self.get_loss(pred, data.x_solution, data['vals'].batch)
             val_losses += loss * data.num_graphs
             cos_sims += cos_sim * data.num_graphs
             num_graphs += data.num_graphs
@@ -78,13 +79,8 @@ class Trainer:
         return val_losses.item() / num_graphs, cos_sims.item() / num_graphs
 
     def get_loss(self, pred, label, batch):
-        """
-
-        pred: nnodes x layers
-        label: nnodes
-        """
         # cosine similarity, only on the last layer
-        pred_batch, _ = to_dense_batch(pred[:, -1], batch)  # batchsize x max_nnodes
+        pred_batch, _ = to_dense_batch(pred, batch)  # batchsize x max_nnodes
         label_batch = to_dense_batch(label, batch)[0]   # batchsize x max_nnodes
         target = pred_batch.new_ones(pred_batch.shape[0])
         # cos = torch.vmap(self.cos_metric, in_dims=(2, None, None), out_dims=1)(pred_batch, label_batch, target)
@@ -92,7 +88,7 @@ class Trainer:
         cos = cos.mean()
 
         if self.loss_type in ['l1', 'l2']:
-            loss = self.loss_func(pred, label[..., None])  # nnodes x layers
+            loss = self.loss_func(pred, label)  # nnodes x layers
             # mean over each variable in an instance, then mean over instances
             loss = scatter(loss, batch, dim=0, reduce='mean').mean()
         else:

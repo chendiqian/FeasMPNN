@@ -1,7 +1,6 @@
 import os
 import argparse
 from ml_collections import ConfigDict
-from functools import partial
 import yaml
 
 import copy
@@ -13,7 +12,7 @@ from tqdm import tqdm
 import wandb
 
 from data.dataset import LPDataset
-from data.utils import args_set_bool, random_start_point, collate_fn_lp
+from data.utils import args_set_bool, feasible_start_point, collate_fn_lp
 from models.hetero_gnn import TripartiteHeteroGNN
 from trainer import Trainer
 
@@ -28,7 +27,6 @@ def args_parser():
 
     # training dynamics
     parser.add_argument('--losstype', type=str, default='l2', choices=['l1', 'l2', 'cos'])
-    parser.add_argument('--train_ipm_iter', type=int, default=5)
     parser.add_argument('--ckpt', type=str, default='true')
     parser.add_argument('--runs', type=int, default=1)
     parser.add_argument('--lr', type=float, default=1.e-3)
@@ -48,8 +46,6 @@ def args_parser():
     parser.add_argument('--norm', type=str, default='graphnorm')  # empirically better
     parser.add_argument('--use_res', type=str, default='false')  # does not help
     parser.add_argument('--dropout', type=float, default=0.)  # must
-    parser.add_argument('--pred_all', type=str, default='false')
-    parser.add_argument('--share_pred', type=str, default='false')
 
     return parser.parse_args()
 
@@ -74,8 +70,7 @@ if __name__ == '__main__':
                config=vars(args),
                entity="chendiqian")  # use your own entity
 
-    dataset = LPDataset(args.datapath,
-                        transform=partial(random_start_point, maxiter=args.train_ipm_iter))
+    dataset = LPDataset(args.datapath, transform=feasible_start_point)
 
     train_loader = DataLoader(dataset[:int(len(dataset) * 0.8)],
                               batch_size=args.batchsize,
@@ -105,8 +100,6 @@ if __name__ == '__main__':
                                     num_conv_layers=args.num_conv_layers,
                                     num_pred_layers=args.num_pred_layers,
                                     num_mlp_layers=args.num_mlp_layers,
-                                    pred_all=args.pred_all,
-                                    share_pred=args.share_pred,
                                     dropout=args.dropout,
                                     norm=args.norm,
                                     use_res=args.use_res,

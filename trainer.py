@@ -1,6 +1,5 @@
 import torch
 from torch_scatter import scatter
-from torch_geometric.utils import to_dense_batch
 
 
 class Trainer:
@@ -9,15 +8,13 @@ class Trainer:
                  loss_type,
                  micro_batch):
         self.best_val_loss = 1.e8
-        self.best_cos_sim = 1.e8
         self.patience = 0
         self.device = device
         self.loss_type = loss_type
-        self.cos_metric = torch.nn.CosineEmbeddingLoss(reduction='none')
         if loss_type == 'l2':
-            self.loss_func = lambda x, y: (x - y) ** 2
+            self.loss_func = lambda x: x ** 2
         elif loss_type == 'l1':
-            self.loss_func = lambda x, y: (x - y).abs()
+            self.loss_func = lambda x: x.abs()
         elif loss_type == 'cos':
             pass
         else:
@@ -33,16 +30,13 @@ class Trainer:
         loss_scaling_lst = [micro_batch] * (len(dataloader) // micro_batch) + [len(dataloader) % micro_batch]
 
         train_losses = 0.
-        cos_sims = 0.
         num_graphs = 0
         for i, data in enumerate(dataloader):
             data = data.to(self.device)
-            pred = model(data)
-            # todo: fix the loss
-            loss, cos_sim = self.get_loss(pred, data.x_solution, data['vals'].batch)
+            pred = model(data)  # nnodes x steps
+            loss = self.get_loss(pred, data['vals'].batch)
 
             train_losses += loss.detach() * data.num_graphs
-            cos_sims += cos_sim * data.num_graphs
             num_graphs += data.num_graphs
 
             update_count += 1
@@ -58,7 +52,7 @@ class Trainer:
                 update_count = 0
                 loss_scaling_lst.pop(0)
 
-        return train_losses.item() / num_graphs, cos_sims.item() / num_graphs
+        return train_losses.item() / num_graphs
 
 
     @torch.no_grad()
@@ -66,31 +60,18 @@ class Trainer:
         model.eval()
 
         val_losses = 0.
-        cos_sims = 0.
         num_graphs = 0
         for i, data in enumerate(dataloader):
             data = data.to(self.device)
             pred = model(data)
-            loss, cos_sim = self.get_loss(pred, data.x_solution, data['vals'].batch)
+            loss = self.get_loss(pred, data['vals'].batch)
             val_losses += loss * data.num_graphs
-            cos_sims += cos_sim * data.num_graphs
             num_graphs += data.num_graphs
 
-        return val_losses.item() / num_graphs, cos_sims.item() / num_graphs
+        return val_losses.item() / num_graphs
 
-    def get_loss(self, pred, label, batch):
-        # cosine similarity, only on the last layer
-        pred_batch, _ = to_dense_batch(pred, batch)  # batchsize x max_nnodes
-        label_batch = to_dense_batch(label, batch)[0]   # batchsize x max_nnodes
-        target = pred_batch.new_ones(pred_batch.shape[0])
-        # cos = torch.vmap(self.cos_metric, in_dims=(2, None, None), out_dims=1)(pred_batch, label_batch, target)
-        cos = self.cos_metric(pred_batch, label_batch, target)
-        cos = cos.mean()
-
-        if self.loss_type in ['l1', 'l2']:
-            loss = self.loss_func(pred, label)  # nnodes x layers
-            # mean over each variable in an instance, then mean over instances
-            loss = scatter(loss, batch, dim=0, reduce='mean').mean()
-        else:
-            loss = cos
-        return loss, cos.detach()
+    def get_loss(self, pred, batch):
+        loss = self.loss_func(pred)  # nnodes x layers
+        # mean over each variable in an instance, then mean over instances
+        loss = scatter(loss, batch, dim=0, reduce='mean').mean()
+        return loss

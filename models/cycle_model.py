@@ -17,7 +17,7 @@ class CycleGNN(torch.nn.Module):
             pred = self.gnn(data)
 
             # projection
-            pred = data.proj_matrix @ pred
+            pred = (data.proj_matrix @ pred).squeeze()
 
             alpha = 1.
             # line search

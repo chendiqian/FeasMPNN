@@ -130,5 +130,5 @@ class TripartiteHeteroGNN(torch.nn.Module):
                     x_dict = {k: F.relu(h2[k]) for k in keys}
                 x_dict = {k: F.dropout(F.relu(x_dict[k]), p=self.dropout, training=self.training) for k in keys}
 
-        x = self.predictor(hiddens[-1]).squeeze()
+        x = self.predictor(hiddens[-1])
         return x

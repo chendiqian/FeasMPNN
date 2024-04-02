@@ -90,7 +90,9 @@ if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     best_val_losses = []
+    best_val_cos_sims = []
     test_losses = []
+    test_cos_sims = []
 
     for run in range(args.runs):
         if args.ckpt:
@@ -114,16 +116,17 @@ if __name__ == '__main__':
 
         pbar = tqdm(range(args.epoch))
         for epoch in pbar:
-            train_loss = trainer.train(train_loader, model, optimizer)
-            val_loss = trainer.eval(val_loader, model)
+            train_loss, train_cos_sim = trainer.train(train_loader, model, optimizer)
+            val_loss, val_cos_sim = trainer.eval(val_loader, model)
 
             # imo cosine similarity makes more sense, we don't care about norm but direction
             if scheduler is not None:
-                scheduler.step(val_loss)
+                scheduler.step(val_cos_sim)
 
-            if trainer.best_val_loss > val_loss:
+            if trainer.best_cos_sim > val_cos_sim:
                 trainer.patience = 0
                 trainer.best_val_loss = val_loss
+                trainer.best_cos_sim = val_cos_sim
                 best_model = copy.deepcopy(model.state_dict())
                 if args.ckpt:
                     torch.save(model.state_dict(), os.path.join(log_folder_name, f'run{run}', 'best_model.pt'))
@@ -134,22 +137,31 @@ if __name__ == '__main__':
                 break
 
             pbar.set_postfix({'train_loss': train_loss,
+                              'train_cos_sim': train_cos_sim,
                               'val_loss': val_loss,
+                              'val_cos_sim': val_cos_sim,
                               'lr': scheduler.optimizer.param_groups[0]["lr"]})
             log_dict = {'train_loss': train_loss,
+                        'train_cos_sim': train_cos_sim,
                         'val_loss': val_loss,
+                        'val_cos_sim': val_cos_sim,
                         'lr': scheduler.optimizer.param_groups[0]["lr"]}
             wandb.log(log_dict)
         best_val_losses.append(trainer.best_val_loss)
+        best_val_cos_sims.append(trainer.best_cos_sim)
 
         model.load_state_dict(best_model)
         with torch.no_grad():
-            test_loss = trainer.eval(test_loader, model)
+            test_loss, test_cos_sim = trainer.eval(test_loader, model)
         test_losses.append(test_loss)
-        wandb.log({'test_loss': test_loss})
+        test_cos_sims.append(test_cos_sim)
+        wandb.log({'test_loss': test_loss, 'test_cos_sim': test_cos_sim})
 
     wandb.log({
         'best_val_loss': np.mean(best_val_losses),
+        'best_val_cos_sim': np.mean(best_val_cos_sims),
         'test_loss_mean': np.mean(test_losses),
         'test_loss_std': np.std(test_losses),
+        'test_cos_sim_mean': np.mean(test_cos_sims),
+        'test_cos_sim_std': np.std(test_cos_sims),
     })

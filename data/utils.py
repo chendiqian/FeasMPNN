@@ -60,3 +60,8 @@ def collate_fn_lp(graphs: List[Data]):
     proj_matrices = SparseTensor.from_scipy(proj_matrices)
     new_batch.proj_matrix = proj_matrices
     return new_batch
+
+
+def l1_normalize(x: torch.Tensor, dim=0):
+    x /= x.abs().max(dim=dim, keepdims=True).values + 1.e-7
+    return x

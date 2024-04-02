@@ -18,7 +18,7 @@ def args_set_bool(args: Dict):
     return args
 
 
-def feasible_start_point(graph: Data):
+def feasible_start_point(graph: Data, keep_lp=False):
     A = SparseTensor(row=graph.A_row,
                      col=graph.A_col,
                      value=graph.A_val, is_sorted=True,
@@ -43,12 +43,13 @@ def feasible_start_point(graph: Data):
 
     graph.x_start = torch.from_numpy(x).to(torch.float)
 
-    # remove a, b, c unnecessary
-    graph.A_row = None
-    graph.A_col = None
-    graph.A_val = None
-    graph.b = None
-    graph.c = None
+    if not keep_lp:
+        # remove a, b, c unnecessary
+        graph.A_row = None
+        graph.A_col = None
+        graph.A_val = None
+        graph.b = None
+        graph.c = None
     return graph
 
 

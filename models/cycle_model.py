@@ -22,8 +22,11 @@ class CycleGNN(torch.nn.Module):
             label = l1_normalize(data.x_solution - data.x_start)
             label_list.append(label)
 
+            # Todo: experimental, barrier function
+            direction = pred.detach() + 0.01 / (data.x_start + 1.e-2)
+
             # projection
-            pred = (data.proj_matrix @ pred.detach()[:, None]).squeeze()
+            pred = (data.proj_matrix @ direction[:, None]).squeeze()
 
             alpha = 1.
             # line search

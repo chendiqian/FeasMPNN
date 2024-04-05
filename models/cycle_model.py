@@ -10,6 +10,8 @@ class CycleGNN(torch.nn.Module):
 
         self.num_steps = num_steps
         self.gnn = gnn
+        # Todo: experimental, barrier method
+        self.tau = 0.01
 
     def forward(self, data):
         pred_list = []
@@ -23,7 +25,8 @@ class CycleGNN(torch.nn.Module):
             label_list.append(label)
 
             # Todo: experimental, barrier function
-            direction = pred.detach() + 0.01 / (data.x_start + 1.e-2)
+            direction = pred.detach() + self.tau / (data.x_start + self.tau)
+            self.tau = max(self.tau / 2., 1.e-4)
 
             # projection
             pred = (data.proj_matrix @ direction[:, None]).squeeze()
@@ -36,6 +39,8 @@ class CycleGNN(torch.nn.Module):
 
             # update
             data.x_start = data.x_start + alpha * pred
+
+            # print(data.c.dot(data.x_start))
 
         pred_list = torch.stack(pred_list, 1)
         label_list = torch.stack(label_list, 1)

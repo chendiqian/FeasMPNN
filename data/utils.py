@@ -49,7 +49,6 @@ def feasible_start_point(graph: Data, keep_lp=False):
         graph.A_col = None
         graph.A_val = None
         graph.b = None
-        graph.c = None
     return graph
 
 

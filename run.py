@@ -27,7 +27,7 @@ def args_parser():
     parser.add_argument('--use_wandb', type=str, default='false')
 
     # training dynamics
-    parser.add_argument('--losstype', type=str, default='l2', choices=['l1', 'l2', 'cos'])
+    parser.add_argument('--losstype', type=str, default='l2', choices=['l1', 'l2'])
     parser.add_argument('--ckpt', type=str, default='true')
     parser.add_argument('--runs', type=int, default=1)
     parser.add_argument('--lr', type=float, default=1.e-3)
@@ -80,11 +80,11 @@ if __name__ == '__main__':
                               shuffle=True,
                               collate_fn=collate_fn_lp)
     val_loader = DataLoader(dataset[int(len(dataset) * 0.8):int(len(dataset) * 0.9)],
-                            batch_size=args.batchsize,
+                            batch_size=args.batchsize * 2,
                             shuffle=False,
                             collate_fn=collate_fn_lp)
     test_loader = DataLoader(dataset[int(len(dataset) * 0.9):],
-                             batch_size=args.batchsize,
+                             batch_size=args.batchsize * 2,
                              shuffle=False,
                              collate_fn=collate_fn_lp)
 

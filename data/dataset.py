@@ -52,6 +52,7 @@ class LPDataset(InMemoryDataset):
                 A = torch.from_numpy(A).to(torch.float)
                 b = torch.from_numpy(b).to(torch.float)
                 c = torch.from_numpy(c).to(torch.float)
+                x = torch.from_numpy(x).to(torch.float)
 
                 A_row, A_col = torch.where(A)
 
@@ -82,7 +83,8 @@ class LPDataset(InMemoryDataset):
                                                                torch.arange(A.shape[0])]),
                                    'edge_attr': b[:, None]},
 
-                    x_solution=torch.from_numpy(x).to(torch.float),
+                    x_solution=x,
+                    obj_solution=c.dot(x),
                     c=c,
                     b=b,
                     A_row=A_row,

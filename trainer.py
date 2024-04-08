@@ -10,6 +10,7 @@ class Trainer:
                  micro_batch):
         self.best_val_loss = 1.e8
         self.best_cos_sim = 1.e8
+        self.best_objgap = 1.e8
         self.patience = 0
         self.device = device
         self.loss_type = loss_type
@@ -94,3 +95,15 @@ class Trainer:
         cos = torch.vmap(self.cos_metric, in_dims=(2, 2, None), out_dims=1)(pred_batch, label_batch, target)
         cos = cos.mean()
         return cos
+
+    @torch.no_grad()
+    def get_pseudo_ipm_solution(self, dataloader, model):
+        model.eval()
+
+        obj_gaps = []
+        for i, data in enumerate(dataloader):
+            data = data.to(self.device)
+            obj_gap = model.evaluation(data)
+            obj_gaps.append(obj_gap)
+
+        return torch.cat(obj_gaps, dim=0).mean().item()

@@ -38,10 +38,11 @@ def args_parser():
     parser.add_argument('--micro_batch', type=int, default=1)
 
     # model related
-    parser.add_argument('--steps', type=int, default=4)
+    parser.add_argument('--ipm_train_steps', type=int, default=8)
+    parser.add_argument('--ipm_eval_steps', type=int, default=64)
     parser.add_argument('--conv', type=str, default='gcnconv')
     parser.add_argument('--hidden', type=int, default=128)
-    parser.add_argument('--num_conv_layers', type=int, default=4)
+    parser.add_argument('--num_conv_layers', type=int, default=6)
     parser.add_argument('--num_pred_layers', type=int, default=2)
     parser.add_argument('--num_mlp_layers', type=int, default=2, help='mlp layers within GENConv')
     parser.add_argument('--conv_sequence', type=str, default='cov')
@@ -91,8 +92,10 @@ if __name__ == '__main__':
 
     best_val_losses = []
     best_val_cos_sims = []
+    best_val_objgaps = []
     test_losses = []
     test_cos_sims = []
+    test_objgaps = []
 
     for run in range(args.runs):
         if args.ckpt:
@@ -106,7 +109,7 @@ if __name__ == '__main__':
                                   norm=args.norm,
                                   use_res=args.use_res,
                                   conv_sequence=args.conv_sequence)
-        model = CycleGNN(args.steps, gnn).to(device)
+        model = CycleGNN(args.ipm_train_steps, args.ipm_eval_steps, gnn).to(device)
         best_model = copy.deepcopy(model.state_dict())
 
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
@@ -118,15 +121,17 @@ if __name__ == '__main__':
         for epoch in pbar:
             train_loss, train_cos_sim = trainer.train(train_loader, model, optimizer)
             val_loss, val_cos_sim = trainer.eval(val_loader, model)
+            val_obj_gap = trainer.get_pseudo_ipm_solution(val_loader, model)
 
             # imo cosine similarity makes more sense, we don't care about norm but direction
             if scheduler is not None:
-                scheduler.step(val_cos_sim)
+                scheduler.step(val_obj_gap)
 
-            if trainer.best_cos_sim > val_cos_sim:
+            if trainer.best_objgap > val_obj_gap:
                 trainer.patience = 0
                 trainer.best_val_loss = val_loss
                 trainer.best_cos_sim = val_cos_sim
+                trainer.best_objgap = val_obj_gap
                 best_model = copy.deepcopy(model.state_dict())
                 if args.ckpt:
                     torch.save(model.state_dict(), os.path.join(log_folder_name, f'run{run}', 'best_model.pt'))
@@ -140,28 +145,35 @@ if __name__ == '__main__':
                               'train_cos_sim': train_cos_sim,
                               'val_loss': val_loss,
                               'val_cos_sim': val_cos_sim,
+                              'val_obj_gap': val_obj_gap,
                               'lr': scheduler.optimizer.param_groups[0]["lr"]})
             log_dict = {'train_loss': train_loss,
                         'train_cos_sim': train_cos_sim,
                         'val_loss': val_loss,
                         'val_cos_sim': val_cos_sim,
+                        'val_obj_gap': val_obj_gap,
                         'lr': scheduler.optimizer.param_groups[0]["lr"]}
             wandb.log(log_dict)
         best_val_losses.append(trainer.best_val_loss)
         best_val_cos_sims.append(trainer.best_cos_sim)
+        best_val_objgaps.append(trainer.best_objgap)
 
         model.load_state_dict(best_model)
-        with torch.no_grad():
-            test_loss, test_cos_sim = trainer.eval(test_loader, model)
+        test_loss, test_cos_sim = trainer.eval(test_loader, model)
+        test_obj_gap = trainer.get_pseudo_ipm_solution(test_loader, model)
         test_losses.append(test_loss)
         test_cos_sims.append(test_cos_sim)
-        wandb.log({'test_loss': test_loss, 'test_cos_sim': test_cos_sim})
+        test_objgaps.append(test_obj_gap)
+        wandb.log({'test_loss': test_loss, 'test_cos_sim': test_cos_sim, 'test_obj_gap': test_obj_gap})
 
     wandb.log({
         'best_val_loss': np.mean(best_val_losses),
         'best_val_cos_sim': np.mean(best_val_cos_sims),
+        'best_val_obj_gap': np.mean(best_val_objgaps),
         'test_loss_mean': np.mean(test_losses),
         'test_loss_std': np.std(test_losses),
         'test_cos_sim_mean': np.mean(test_cos_sims),
         'test_cos_sim_std': np.std(test_cos_sims),
+        'test_obj_gap_mean': np.mean(test_objgaps),
+        'test_obj_gap_std': np.std(test_objgaps),
     })

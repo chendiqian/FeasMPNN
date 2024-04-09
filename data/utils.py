@@ -92,3 +92,13 @@ def collate_fn_lp(graphs: List[Data]):
 def l1_normalize(x: torch.Tensor, dim=0):
     x /= x.abs().max(dim=dim, keepdims=True).values + 1.e-7
     return x
+
+
+def line_search(x: torch.Tensor, direction: torch.Tensor, alpha: float = 1.0):
+    """
+    line search to ensure x' = x + alpha * direction >= 0
+    """
+    neg_mask = direction < 0.
+    if torch.any(neg_mask):
+        alpha = min(alpha, (x[neg_mask] / -direction[neg_mask]).min().item())
+    return alpha

@@ -43,11 +43,12 @@ def collate_fn_lp(graphs: List[Data], device: torch.device):
                                      exclude_keys=['A_row', 'A_col', 'A_val', 'b',
                                                    'proj_matrix', 'proj_mat_shape'])
     # finish the half of symmetric edges
-    new_batch[('vals', 'to', 'cons')].edge_index = new_batch[('cons', 'to', 'vals')].edge_index
+    flip_tensor = torch.tensor([1, 0])
+    new_batch[('vals', 'to', 'cons')].edge_index = new_batch[('cons', 'to', 'vals')].edge_index[flip_tensor]
     new_batch[('vals', 'to', 'cons')].edge_attr = new_batch[('cons', 'to', 'vals')].edge_attr
-    new_batch[('obj', 'to', 'vals')].edge_index = new_batch[('vals', 'to', 'obj')].edge_index
+    new_batch[('obj', 'to', 'vals')].edge_index = new_batch[('vals', 'to', 'obj')].edge_index[flip_tensor]
     new_batch[('obj', 'to', 'vals')].edge_attr = new_batch[('vals', 'to', 'obj')].edge_attr
-    new_batch[('obj', 'to', 'cons')].edge_index = new_batch[('cons', 'to', 'obj')].edge_index
+    new_batch[('obj', 'to', 'cons')].edge_index = new_batch[('cons', 'to', 'obj')].edge_index[flip_tensor]
     new_batch[('obj', 'to', 'cons')].edge_attr = new_batch[('cons', 'to', 'obj')].edge_attr
 
     new_batch.proj_matrix = proj_matrix

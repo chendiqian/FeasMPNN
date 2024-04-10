@@ -17,20 +17,20 @@ def args_set_bool(args: Dict):
 
 
 def collate_fn_lp(graphs: List[Data], device: torch.device):
-    cumsum_row = 0
-    cumsum_col = 0
+    cumsum_nnodes = 0
 
     row_indices = []
     col_indices = []
-    vals = []
+    vals = [g.proj_matrix for g in graphs]
+    max_nnodes = max([g.x_solution.shape[0] for g in graphs])
+    _arange = np.arange(max_nnodes)[:, None].repeat(max_nnodes, 1)
 
     for g in graphs:
-        vals.append(g.pop('proj_matrix'))
-        nrows, ncols = g.pop('proj_mat_shape').tolist()
-        row_idx = np.arange(cumsum_row, cumsum_row + nrows).repeat(ncols)
-        cumsum_row += nrows
-        col_idx = np.tile(np.arange(cumsum_col, cumsum_col + ncols), nrows)
-        cumsum_col += ncols
+        nnodes = g.x_solution.shape[0]
+        tmp_arange = _arange[:nnodes, :nnodes] + cumsum_nnodes
+        row_idx = tmp_arange.reshape(-1)
+        col_idx = tmp_arange.T.reshape(-1)
+        cumsum_nnodes += nnodes
         row_indices.append(row_idx)
         col_indices.append(col_idx)
 
@@ -39,7 +39,17 @@ def collate_fn_lp(graphs: List[Data], device: torch.device):
     vals = torch.cat(vals, dim=0)
 
     proj_matrix = SparseTensor(row=row_indices, col=col_indices, value=vals, is_sorted=True, trust_data=True)
-    new_batch = Batch.from_data_list(graphs)
+    new_batch = Batch.from_data_list(graphs,
+                                     exclude_keys=['A_row', 'A_col', 'A_val', 'b',
+                                                   'proj_matrix', 'proj_mat_shape'])
+    # finish the half of symmetric edges
+    new_batch[('vals', 'to', 'cons')].edge_index = new_batch[('cons', 'to', 'vals')].edge_index
+    new_batch[('vals', 'to', 'cons')].edge_attr = new_batch[('cons', 'to', 'vals')].edge_attr
+    new_batch[('obj', 'to', 'vals')].edge_index = new_batch[('vals', 'to', 'obj')].edge_index
+    new_batch[('obj', 'to', 'vals')].edge_attr = new_batch[('vals', 'to', 'obj')].edge_attr
+    new_batch[('obj', 'to', 'cons')].edge_index = new_batch[('cons', 'to', 'obj')].edge_index
+    new_batch[('obj', 'to', 'cons')].edge_attr = new_batch[('cons', 'to', 'obj')].edge_attr
+
     new_batch.proj_matrix = proj_matrix
 
     # perturb the initial feasible solution

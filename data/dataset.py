@@ -80,22 +80,23 @@ class LPDataset(InMemoryDataset):
                     obj={'x': torch.cat([c.mean(0, keepdims=True),
                                          c.std(0, keepdims=True)], dim=0)[None]},
 
+                    # assign half of the symmetry, need to finish it in the collate function
                     cons__to__vals={'edge_index': torch.vstack(torch.where(A)),
                                     'edge_attr': A[torch.where(A)][:, None]},
-                    vals__to__cons={'edge_index': torch.vstack(torch.where(A.T)),
-                                    'edge_attr': A.T[torch.where(A.T)][:, None]},
+                    # vals__to__cons={'edge_index': torch.vstack(torch.where(A.T)),
+                    #                 'edge_attr': A.T[torch.where(A.T)][:, None]},
                     vals__to__obj={'edge_index': torch.vstack([torch.arange(A.shape[1]),
                                                                torch.zeros(A.shape[1], dtype=torch.long)]),
                                    'edge_attr': c[:, None]},
-                    obj__to__vals={'edge_index': torch.vstack([torch.zeros(A.shape[1], dtype=torch.long),
-                                                               torch.arange(A.shape[1])]),
-                                   'edge_attr': c[:, None]},
+                    # obj__to__vals={'edge_index': torch.vstack([torch.zeros(A.shape[1], dtype=torch.long),
+                    #                                            torch.arange(A.shape[1])]),
+                    #                'edge_attr': c[:, None]},
                     cons__to__obj={'edge_index': torch.vstack([torch.arange(A.shape[0]),
                                                                torch.zeros(A.shape[0], dtype=torch.long)]),
                                    'edge_attr': b[:, None]},
-                    obj__to__cons={'edge_index': torch.vstack([torch.zeros(A.shape[0], dtype=torch.long),
-                                                               torch.arange(A.shape[0])]),
-                                   'edge_attr': b[:, None]},
+                    # obj__to__cons={'edge_index': torch.vstack([torch.zeros(A.shape[0], dtype=torch.long),
+                    #                                            torch.arange(A.shape[0])]),
+                    #                'edge_attr': b[:, None]},
 
                     x_solution=x,
                     x_feasible=x_feasible,
@@ -106,7 +107,6 @@ class LPDataset(InMemoryDataset):
                     A_col=A_col,
                     A_val=A[A_row, A_col],
                     proj_matrix=proj_matrix.reshape(-1),
-                    proj_mat_shape=torch.tensor(proj_matrix.shape)
                 )
 
                 if self.pre_filter is not None:

@@ -14,6 +14,7 @@ import wandb
 
 from data.dataset import LPDataset
 from data.utils import args_set_bool, collate_fn_lp
+from data.prefetch_generator import BackgroundGenerator
 from models.hetero_gnn import TripartiteHeteroGNN
 from models.cycle_model import CycleGNN
 from trainer import Trainer
@@ -124,9 +125,13 @@ if __name__ == '__main__':
 
         pbar = tqdm(range(args.epoch))
         for epoch in pbar:
-            train_loss, train_cos_sim = trainer.train(train_loader, model, optimizer)
-            val_loss, val_cos_sim = trainer.eval(val_loader, model)
-            val_obj_gap = trainer.get_pseudo_ipm_solution(val_loader, model)
+            # train_loss, train_cos_sim = trainer.train(train_loader, model, optimizer)
+            # val_loss, val_cos_sim = trainer.eval(val_loader, model)
+            # val_obj_gap = trainer.get_pseudo_ipm_solution(val_loader, model)
+
+            train_loss, train_cos_sim = trainer.train(BackgroundGenerator(train_loader, device, 4), model, optimizer)
+            val_loss, val_cos_sim = trainer.eval(BackgroundGenerator(val_loader, device, 4), model)
+            val_obj_gap = trainer.get_pseudo_ipm_solution(BackgroundGenerator(val_loader, device, 4), model)
 
             # imo cosine similarity makes more sense, we don't care about norm but direction
             if scheduler is not None:

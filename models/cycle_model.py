@@ -1,6 +1,6 @@
 import torch
 from torch_geometric.utils import to_dense_batch
-from data.utils import l1_normalize, line_search
+from data.utils import l1_normalize, batch_line_search
 
 
 class CycleGNN(torch.nn.Module):
@@ -41,7 +41,7 @@ class CycleGNN(torch.nn.Module):
             # projection
             pred = (data.proj_matrix @ direction[:, None]).squeeze()
             # line search
-            alpha = line_search(data.x_start, pred, 1.)
+            alpha = batch_line_search(data.x_start, pred, data['vals'].batch, 1.)
             # update
             data.x_start = data.x_start + alpha * pred
 
@@ -66,7 +66,7 @@ class CycleGNN(torch.nn.Module):
             # projection
             pred = (data.proj_matrix @ direction[:, None]).squeeze()
             # line search
-            alpha = line_search(data.x_start, pred, 1.)
+            alpha = batch_line_search(data.x_start, pred, data['vals'].batch, 1.)
             # update
             data.x_start = data.x_start + alpha * pred
             current_batched_x, _ = to_dense_batch(data.x_start, data['vals'].batch)  # batchsize x max_nnodes

@@ -1,11 +1,9 @@
 from typing import Dict, List
 import torch
 from torch_sparse import SparseTensor
+from torch_scatter import scatter_min
 from torch_geometric.data import Data, Batch
 import numpy as np
-from solver.linprog_ip import _ip_hsd
-# from scipy.optimize import linprog
-# from scipy.sparse import block_diag
 
 
 def args_set_bool(args: Dict):
@@ -18,50 +16,7 @@ def args_set_bool(args: Dict):
     return args
 
 
-def feasible_start_point(graph: Data, keep_lp=False):
-    A = SparseTensor(row=graph.A_row,
-                     col=graph.A_col,
-                     value=graph.A_val, is_sorted=True,
-                     trust_data=True).to_dense().numpy()
-    b = graph.b.numpy()
-
-    x, status, message, iteration, callback_outputs = _ip_hsd(A, b, np.zeros(A.shape[1]), 0.,
-                                                              alpha0=0.99995, beta=0.1,
-                                                              maxiter=10,
-                                                              disp=False, tol=1.e-6, sparse=False,
-                                                              lstsq=False, sym_pos=True, cholesky=None,
-                                                              pc=True, ip=True, permc_spec='MMD_AT_PLUS_A',
-                                                              callback=None,
-                                                              postsolve_args=None,
-                                                              rand_start=True)
-
-    # # another option, faster on large instance
-    # rn = np.random.rand(b.shape[0])
-    # x1 = linprog(np.random.randn(A.shape[1]), A_eq=A, b_eq=b + rn, bounds=None).x
-    # x2 = linprog(np.random.randn(A.shape[1]), A_eq=A, b_eq=b - rn, bounds=None).x
-    # x = (x1 + x2) / 2
-
-    graph.x_start = torch.from_numpy(x).to(torch.float)
-
-    if not keep_lp:
-        # remove a, b, c unnecessary
-        graph.A_row = None
-        graph.A_col = None
-        graph.A_val = None
-        graph.b = None
-    return graph
-
-
-# def collate_fn_lp(graphs: List[Data]):
-#     proj_matrices = [g.pop('proj_matrix').numpy().reshape(g.pop('proj_mat_shape').tolist()) for g in graphs]
-#     new_batch = Batch.from_data_list(graphs)
-#     proj_matrices = block_diag(proj_matrices)
-#     proj_matrices = SparseTensor.from_scipy(proj_matrices)
-#     new_batch.proj_matrix = proj_matrices
-#     return new_batch
-
-
-def collate_fn_lp(graphs: List[Data]):
+def collate_fn_lp(graphs: List[Data], device: torch.device):
     cumsum_row = 0
     cumsum_col = 0
 
@@ -86,6 +41,17 @@ def collate_fn_lp(graphs: List[Data]):
     proj_matrix = SparseTensor(row=row_indices, col=col_indices, value=vals, is_sorted=True, trust_data=True)
     new_batch = Batch.from_data_list(graphs)
     new_batch.proj_matrix = proj_matrix
+
+    # perturb the initial feasible solution
+    proj_matrix = proj_matrix.to(device, non_blocking=True)
+    direction = (proj_matrix @ torch.randn(new_batch.x_solution.shape[0], 1, device=device)).squeeze()
+    alpha = batch_line_search(new_batch.x_feasible.to(device, non_blocking=True),
+                              direction,
+                              new_batch['vals'].batch.to(device, non_blocking=True),
+                              1.)
+
+    alpha = torch.rand(alpha.shape[0], device=device) * alpha
+    new_batch.x_start = new_batch.x_feasible + alpha * direction
     return new_batch
 
 
@@ -101,4 +67,12 @@ def line_search(x: torch.Tensor, direction: torch.Tensor, alpha: float = 1.0):
     neg_mask = direction < 0.
     if torch.any(neg_mask):
         alpha = min(alpha, (x[neg_mask] / -direction[neg_mask]).min().item())
+    return alpha
+
+
+def batch_line_search(x: torch.Tensor, direction: torch.Tensor, batch: torch.Tensor, alpha: float = 1.0):
+    neg_mask = direction < 0.
+    alpha = torch.where(neg_mask, x / -direction, alpha)
+    alpha = scatter_min(alpha, batch)[0]
+    alpha = alpha[batch]
     return alpha

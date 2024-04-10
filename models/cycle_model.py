@@ -14,16 +14,12 @@ class CycleGNN(torch.nn.Module):
         self.num_eval_steps = num_eval_steps
         self.gnn = gnn
         # Todo: experimental, barrier method
-        self.tau = 0.01
-        self.reset_tau()
-
-    def reset_tau(self):
-        self.tau = 0.01
+        self.init_tau = 0.01
 
     def forward(self, data):
 
         # reset
-        self.reset_tau()
+        tau = self.init_tau
         pred_list = []
         label_list = []
         for i in range(self.num_steps):
@@ -35,13 +31,13 @@ class CycleGNN(torch.nn.Module):
             label_list.append(label)
 
             # Todo: experimental, barrier function
-            direction = pred.detach() + self.tau / (data.x_start + self.tau)
-            self.tau = max(self.tau / 2., 1.e-4)
+            direction = pred.detach() + tau / (data.x_start + tau)
+            tau = max(tau / 2., 1.e-5)
 
             # projection
             pred = (data.proj_matrix @ direction[:, None]).squeeze()
             # line search
-            alpha = batch_line_search(data.x_start, pred, data['vals'].batch, 1.)
+            alpha = batch_line_search(data.x_start, pred, data['vals'].batch, 1.) * 0.995
             # update
             data.x_start = data.x_start + alpha * pred
 
@@ -52,7 +48,7 @@ class CycleGNN(torch.nn.Module):
     @torch.no_grad()
     def evaluation(self, data):
         # reset
-        self.reset_tau()
+        tau = self.init_tau
         current_best_batched_x, _ = to_dense_batch(data.x_start.clone(), data['vals'].batch)  # batchsize x max_nnodes
         batched_c, _ = to_dense_batch(data.c, data['vals'].batch)  # batchsize x max_nnodes
         opt_obj = data.obj_solution
@@ -60,13 +56,13 @@ class CycleGNN(torch.nn.Module):
         for i in range(self.num_eval_steps):
             # prediction
             pred = self.gnn(data)
-            direction = pred + self.tau / (data.x_start + self.tau)
-            self.tau = max(self.tau / 2., 1.e-4)
+            direction = pred + tau / (data.x_start + tau)
+            tau = max(tau / 2., 1.e-5)
 
             # projection
             pred = (data.proj_matrix @ direction[:, None]).squeeze()
             # line search
-            alpha = batch_line_search(data.x_start, pred, data['vals'].batch, 1.)
+            alpha = batch_line_search(data.x_start, pred, data['vals'].batch, 1.) * 0.995
             # update
             data.x_start = data.x_start + alpha * pred
             current_batched_x, _ = to_dense_batch(data.x_start, data['vals'].batch)  # batchsize x max_nnodes

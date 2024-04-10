@@ -4,19 +4,22 @@ import os.path as osp
 import pickle
 from typing import Callable, List, Optional
 
+from numpy import zeros
 import torch
 from torch_geometric.data import Batch, HeteroData, InMemoryDataset
 from tqdm import tqdm
+
+from solver.linprog_ip import _ip_hsd
 
 
 class LPDataset(InMemoryDataset):
 
     def __init__(
-        self,
-        root: str,
-        transform: Optional[Callable] = None,
-        pre_transform: Optional[Callable] = None,
-        pre_filter: Optional[Callable] = None,
+            self,
+            root: str,
+            transform: Optional[Callable] = None,
+            pre_transform: Optional[Callable] = None,
+            pre_filter: Optional[Callable] = None,
     ):
         super().__init__(root, transform, pre_transform, pre_filter)
         path = osp.join(self.processed_dir, 'data.pt')
@@ -24,7 +27,7 @@ class LPDataset(InMemoryDataset):
 
     @property
     def raw_file_names(self) -> List[str]:
-        return ['instance_0.pkl.gz']   # there should be at least one pkg
+        return ['instance_0.pkl.gz']  # there should be at least one pkg
 
     @property
     def processed_dir(self) -> str:
@@ -47,15 +50,26 @@ class LPDataset(InMemoryDataset):
             for ip_idx in tqdm(range(len(ip_pkgs))):
                 (A, b, c, x, proj_matrix) = ip_pkgs[ip_idx]
 
-                # proj_matrix @ x projects onto the nullspace of A
+                # find some random, feasible initial point
+                x_feasible, *_ = _ip_hsd(A, b, zeros(A.shape[1]), 0.,
+                                         alpha0=0.99995, beta=0.1,
+                                         maxiter=10,
+                                         disp=False, tol=1.e-6, sparse=False,
+                                         lstsq=False, sym_pos=True, cholesky=None,
+                                         pc=True, ip=True, permc_spec='MMD_AT_PLUS_A',
+                                         callback=None,
+                                         postsolve_args=None,
+                                         rand_start=True)
 
                 A = torch.from_numpy(A).to(torch.float)
                 b = torch.from_numpy(b).to(torch.float)
                 c = torch.from_numpy(c).to(torch.float)
                 x = torch.from_numpy(x).to(torch.float)
+                x_feasible = torch.from_numpy(x_feasible).to(torch.float)
 
                 A_row, A_col = torch.where(A)
 
+                # proj_matrix @ x projects onto the nullspace of A
                 proj_matrix = torch.from_numpy(proj_matrix).to(torch.float)
 
                 data = HeteroData(
@@ -84,6 +98,7 @@ class LPDataset(InMemoryDataset):
                                    'edge_attr': b[:, None]},
 
                     x_solution=x,
+                    x_feasible=x_feasible,
                     obj_solution=c.dot(x),
                     c=c,
                     b=b,

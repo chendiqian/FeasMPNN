@@ -51,7 +51,7 @@ def collate_fn_lp(graphs: List[Data], device: torch.device):
                               1.)
 
     alpha = torch.rand(len(graphs), device=device)[new_batch['vals'].batch] * alpha
-    new_batch.x_start = new_batch.x_feasible + alpha * direction
+    new_batch.x_start = new_batch.x_feasible.to(device, non_blocking=True) + alpha * direction
     return new_batch
 
 

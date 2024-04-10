@@ -9,7 +9,7 @@ import torch
 from torch_geometric.data import Batch, HeteroData, InMemoryDataset
 from tqdm import tqdm
 
-from solver.linprog_ip import _ip_hsd
+from solver.linprog_ip import _ip_hsd_feas
 
 
 class LPDataset(InMemoryDataset):
@@ -51,15 +51,12 @@ class LPDataset(InMemoryDataset):
                 (A, b, c, x, proj_matrix) = ip_pkgs[ip_idx]
 
                 # find some random, feasible initial point
-                x_feasible, *_ = _ip_hsd(A, b, zeros(A.shape[1]), 0.,
-                                         alpha0=0.99995, beta=0.1,
-                                         maxiter=10,
-                                         disp=False, tol=1.e-6, sparse=False,
-                                         lstsq=False, sym_pos=True, cholesky=None,
-                                         pc=True, ip=True, permc_spec='MMD_AT_PLUS_A',
-                                         callback=None,
-                                         postsolve_args=None,
-                                         rand_start=True)
+                x_feasible, *_ = _ip_hsd_feas(A, b, zeros(A.shape[1]), 0.,
+                                              alpha0=0.99995, beta=0.1,
+                                              maxiter=100, tol=1.e-6, sparse=False,
+                                              lstsq=False, sym_pos=True, cholesky=None,
+                                              pc=True, ip=True, permc_spec='MMD_AT_PLUS_A',
+                                              rand_start=True)
 
                 A = torch.from_numpy(A).to(torch.float)
                 b = torch.from_numpy(b).to(torch.float)

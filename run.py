@@ -2,6 +2,7 @@ import os
 import argparse
 from ml_collections import ConfigDict
 import yaml
+from functools import partial
 
 import copy
 import numpy as np
@@ -12,7 +13,7 @@ from tqdm import tqdm
 import wandb
 
 from data.dataset import LPDataset
-from data.utils import args_set_bool, feasible_start_point, collate_fn_lp
+from data.utils import args_set_bool, collate_fn_lp
 from models.hetero_gnn import TripartiteHeteroGNN
 from models.cycle_model import CycleGNN
 from trainer import Trainer
@@ -73,22 +74,26 @@ if __name__ == '__main__':
                config=vars(args),
                entity="chendiqian")  # use your own entity
 
-    dataset = LPDataset(args.datapath, transform=feasible_start_point)
+    dataset = LPDataset(args.datapath)
+    # remove unnecessary for training
+    dataset._data.A_col = None
+    dataset._data.A_row = None
+    dataset._data.A_val = None
+    dataset._data.b = None
 
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     train_loader = DataLoader(dataset[:int(len(dataset) * 0.8)],
                               batch_size=args.batchsize,
                               shuffle=True,
-                              collate_fn=collate_fn_lp)
+                              collate_fn=partial(collate_fn_lp, device=device))
     val_loader = DataLoader(dataset[int(len(dataset) * 0.8):int(len(dataset) * 0.9)],
                             batch_size=args.batchsize * 2,
                             shuffle=False,
-                            collate_fn=collate_fn_lp)
+                            collate_fn=partial(collate_fn_lp, device=device))
     test_loader = DataLoader(dataset[int(len(dataset) * 0.9):],
                              batch_size=args.batchsize * 2,
                              shuffle=False,
-                             collate_fn=collate_fn_lp)
-
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+                             collate_fn=partial(collate_fn_lp, device=device))
 
     best_val_losses = []
     best_val_cos_sims = []

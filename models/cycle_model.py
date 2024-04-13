@@ -15,6 +15,7 @@ class CycleGNN(torch.nn.Module):
         self.gnn = gnn
         # Todo: experimental, barrier method
         self.init_tau = 0.01
+        self.step_alpha = 5.
 
     def forward(self, data):
 
@@ -37,7 +38,7 @@ class CycleGNN(torch.nn.Module):
             # projection
             pred = (data.proj_matrix @ direction[:, None]).squeeze()
             # line search
-            alpha = batch_line_search(data.x_start, pred, data['vals'].batch, 1.) * 0.995
+            alpha = batch_line_search(data.x_start, pred, data['vals'].batch, self.step_alpha) * 0.995
             # update
             data.x_start = data.x_start + alpha * pred
 
@@ -62,7 +63,7 @@ class CycleGNN(torch.nn.Module):
             # projection
             pred = (data.proj_matrix @ direction[:, None]).squeeze()
             # line search
-            alpha = batch_line_search(data.x_start, pred, data['vals'].batch, 5.) * 0.995
+            alpha = batch_line_search(data.x_start, pred, data['vals'].batch, self.step_alpha) * 0.995
             # update
             data.x_start = data.x_start + alpha * pred
             current_batched_x, _ = to_dense_batch(data.x_start, data['vals'].batch)  # batchsize x max_nnodes

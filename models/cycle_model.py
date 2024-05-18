@@ -1,6 +1,7 @@
+import numpy as np
 import torch
 from torch_geometric.utils import to_dense_batch
-from data.utils import l1_normalize, batch_line_search
+from data.utils import l1_normalize, batch_line_search, sync_timer
 
 
 class CycleGNN(torch.nn.Module):
@@ -47,8 +48,10 @@ class CycleGNN(torch.nn.Module):
         return pred_list, label_list
 
     @torch.no_grad()
-    def evaluation(self, data):
+    def evaluation(self, data, return_intern=False):
         # reset
+        obj_gaps = []
+        time_steps = []
         tau = self.init_tau
         current_best_batched_x, _ = to_dense_batch(data.x_start.clone(), data['vals'].batch)  # batchsize x max_nnodes
         batched_c, _ = to_dense_batch(data.c, data['vals'].batch)  # batchsize x max_nnodes
@@ -56,6 +59,8 @@ class CycleGNN(torch.nn.Module):
         current_best_obj = (current_best_batched_x * batched_c).sum(1)
         for i in range(self.num_eval_steps):
             # prediction
+            if return_intern:
+                t_start = sync_timer()
             pred = self.gnn(data)
             direction = pred + tau / (data.x_start + tau)
             tau = max(tau / 2., 1.e-5)
@@ -66,10 +71,19 @@ class CycleGNN(torch.nn.Module):
             alpha = batch_line_search(data.x_start, pred, data['vals'].batch, self.step_alpha) * 0.995
             # update
             data.x_start = data.x_start + alpha * pred
+            if return_intern:
+                t_end = sync_timer()
             current_batched_x, _ = to_dense_batch(data.x_start, data['vals'].batch)  # batchsize x max_nnodes
             current_obj = (current_batched_x * batched_c).sum(1)
             better_mask = current_obj < current_best_obj
             current_best_obj = torch.where(better_mask, current_obj, current_best_obj)
             current_best_batched_x = torch.where(better_mask[:, None], current_batched_x, current_best_batched_x)
+            if return_intern:
+                obj_gaps.append(current_best_obj)
+                time_steps.append(t_end - t_start)
 
-        return torch.abs((opt_obj - current_best_obj) / opt_obj)
+        if obj_gaps:
+            obj_gaps = torch.abs((opt_obj - torch.cat(obj_gaps, dim=0)) / opt_obj).cpu().numpy()
+            time_steps = np.cumsum(time_steps, axis=0)
+
+        return torch.abs((opt_obj - current_best_obj) / opt_obj), obj_gaps, time_steps

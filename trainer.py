@@ -1,6 +1,6 @@
 import torch
-from torch_scatter import scatter
 from torch_geometric.utils import to_dense_batch
+from torch_scatter import scatter
 
 
 class Trainer:
@@ -103,7 +103,7 @@ class Trainer:
         obj_gaps = []
         for i, data in enumerate(dataloader):
             data = data.to(self.device)
-            obj_gap = model.evaluation(data)
+            obj_gap, *_ = model.evaluation(data)
             obj_gaps.append(obj_gap)
 
         return torch.cat(obj_gaps, dim=0).mean().item()

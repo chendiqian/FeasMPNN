@@ -1,21 +1,22 @@
-import os
 import argparse
-
-from ml_collections import ConfigDict
+import os
 from functools import partial
 
-import numpy as np
-import torch
-from torch.utils.data import DataLoader
-import wandb
-import seaborn as sns
 import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+import torch
+import wandb
+from ml_collections import ConfigDict
+from torch.utils.data import DataLoader
+from torch_sparse import SparseTensor
 from tqdm import tqdm
 
 from data.dataset import LPDataset
-from data.utils import args_set_bool, collate_fn_lp, gaussian_filter_bt
-from models.hetero_gnn import TripartiteHeteroGNN
+from data.utils import args_set_bool, collate_fn_lp, gaussian_filter_bt, sync_timer
 from models.cycle_model import CycleGNN
+from models.hetero_gnn import TripartiteHeteroGNN
+from solver.customized_solver import ipm_overleaf
 
 
 def args_parser():
@@ -88,6 +89,33 @@ if __name__ == '__main__':
             gnn_timsteps.append(time_stamps)
             gnn_objgaps.append(obj_gaps)
 
+    solver_objgaps = []
+    solver_timsteps = []
+    solver_steps = []
+
+    for data in tqdm(dataset):
+        c = data.c.numpy()
+        b = data.b.numpy()
+        A = SparseTensor(row=data.A_row,
+                         col=data.A_col,
+                         value=data.A_val,
+                         is_sorted=True, trust_data=True).to_dense().numpy()
+        opt_obj = data.obj_solution.item()
+
+        start_t = sync_timer()
+        # res = linprog(
+        #     c,
+        #     A_ub=None, b_ub=None,
+        #     A_eq=A, b_eq=b,
+        #     bounds=None, method='interior-point', callback=lambda res: res.x)
+        res = ipm_overleaf(c, A, b, init='dumb')
+        end_t = sync_timer()
+        xs = np.stack(res['intermediate'], axis=0).dot(c)
+        time_steps = np.arange(1, xs.shape[0] + 1) * (end_t - start_t) / xs.shape[0]
+        solver_timsteps.append(time_steps)
+        solver_objgaps.append(np.abs((xs - opt_obj) / (opt_obj + 1.e-6)))
+        solver_steps.append(res['nit'])
+
     gnn_timsteps = np.concatenate(gnn_timsteps, axis=0)
     gnn_objgaps = np.concatenate(gnn_objgaps, axis=0)
     sort_idx = np.argsort(gnn_timsteps)
@@ -96,9 +124,23 @@ if __name__ == '__main__':
 
     time_grid = np.linspace(0, gnn_timsteps.max(), gnn_timsteps.shape[0])
     sigma = gnn_timsteps.max() / args.ipm_eval_steps
-    mean, (low, upp) = gaussian_filter_bt(time_grid, gnn_timsteps, gnn_objgaps, sigma, n_boot=10)
+    gnn_mean, (gnn_low, gnn_upp) = gaussian_filter_bt(time_grid, gnn_timsteps, gnn_objgaps, sigma, n_boot=10)
 
-    ax = sns.lineplot(x=gnn_timsteps, y=mean)
-    ax.fill_between(gnn_timsteps, low, upp, alpha=0.5)
+    solver_timsteps = np.concatenate(solver_timsteps, axis=0)
+    solver_objgaps = np.concatenate(solver_objgaps, axis=0)
+    sort_idx = np.argsort(solver_timsteps)
+    solver_timsteps = solver_timsteps[sort_idx]
+    solver_objgaps = solver_objgaps[sort_idx]
+
+    time_grid = np.linspace(0, solver_timsteps.max(), solver_timsteps.shape[0])
+    sigma = solver_timsteps.max() / np.mean(solver_steps)
+    solver_mean, (solver_low, solver_upp) = gaussian_filter_bt(time_grid, solver_timsteps, solver_objgaps, sigma, n_boot=10)
+
+    a = sns.lineplot(x=gnn_timsteps, y=gnn_mean, label='GNN', color='r')
+    a.fill_between(gnn_timsteps, gnn_low, gnn_upp, color='r', alpha=0.5)
+    b = sns.lineplot(x=solver_timsteps, y=solver_mean, label='solver', color='b')
+    b.fill_between(solver_timsteps, solver_low, solver_upp, color='b', alpha=0.5)
+
+    plt.legend()
 
     plt.savefig('temp.png', dpi=300)

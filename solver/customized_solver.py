@@ -61,6 +61,7 @@ def ipm_overleaf(c,
     x, lambd, s = smart_start(A, b, c, init)
     _mu = mu(x, s)
     last_x = x
+    xs = [x]
 
     pbar = range(max_iter)
     for iteration in pbar:
@@ -104,6 +105,7 @@ def ipm_overleaf(c,
             s = s + alpha_s * grad_s
             _mu = mu(x, s)
 
+            xs.append(x)
             if np.abs(x - last_x).max() < tol:
                 break
             last_x = x
@@ -113,7 +115,6 @@ def ipm_overleaf(c,
 
     sol = {
         'x': x,
-        'lambd': lambd,
-        's': s,
-        'nit': iteration}
+        'nit': iteration,
+        'intermediate': xs}
     return sol

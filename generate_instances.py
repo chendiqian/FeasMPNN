@@ -58,16 +58,16 @@ def generate_setcover(nrows_l, nrows_u, ncols_l, ncols_u, density, rng):
         i += n
         indptr.append(i)
 
-    # objective coefficients
-    c = rng.rand(ncols)
-
     # sparce CSC to sparse CSR matrix
     A = scipy.sparse.csc_matrix(
         (np.ones(len(indices), dtype=float), indices, indptr),
-        shape=(nrows, ncols)).toarray()
+        shape=(nrows, ncols)).toarray().T
+
+    # objective coefficients
+    c = rng.rand(A.shape[1])
 
     A = -A
-    b = np.ones(nrows, dtype=np.float32) * -1
+    b = np.ones(A.shape[0], dtype=np.float32) * -1
 
     return A, b, c
 

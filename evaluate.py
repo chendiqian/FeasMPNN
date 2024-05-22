@@ -17,6 +17,7 @@ from data.utils import args_set_bool, collate_fn_lp, gaussian_filter_bt, sync_ti
 from models.cycle_model import CycleGNN
 from models.hetero_gnn import TripartiteHeteroGNN
 from solver.customized_solver import ipm_overleaf
+from solver.linprog import linprog
 
 
 def args_parser():
@@ -92,6 +93,9 @@ if __name__ == '__main__':
     solver_objgaps = []
     solver_timsteps = []
     solver_steps = []
+    sp_objgaps = []
+    sp_timsteps = []
+    sp_steps = []
 
     for data in tqdm(dataset):
         c = data.c.numpy()
@@ -103,11 +107,6 @@ if __name__ == '__main__':
         opt_obj = data.obj_solution.item()
 
         start_t = sync_timer()
-        # res = linprog(
-        #     c,
-        #     A_ub=None, b_ub=None,
-        #     A_eq=A, b_eq=b,
-        #     bounds=None, method='interior-point', callback=lambda res: res.x)
         res = ipm_overleaf(c, A, b, init='dumb')
         end_t = sync_timer()
         xs = np.stack(res['intermediate'], axis=0).dot(c)
@@ -115,6 +114,19 @@ if __name__ == '__main__':
         solver_timsteps.append(time_steps)
         solver_objgaps.append(np.abs((xs - opt_obj) / (opt_obj + 1.e-6)))
         solver_steps.append(res['nit'])
+
+        start_t = sync_timer()
+        res = linprog(
+            c,
+            A_ub=None, b_ub=None,
+            A_eq=A, b_eq=b,
+            bounds=None, method='interior-point', callback=lambda res: res.x)
+        end_t = sync_timer()
+        xs = np.stack(res.intermediate, axis=0).dot(c)
+        time_steps = np.arange(1, xs.shape[0] + 1) * (end_t - start_t) / xs.shape[0]
+        sp_timsteps.append(time_steps)
+        sp_objgaps.append(np.abs((xs - opt_obj) / (opt_obj + 1.e-6)))
+        sp_steps.append(res.nit)
 
     gnn_timsteps = np.concatenate(gnn_timsteps, axis=0)
     gnn_objgaps = np.concatenate(gnn_objgaps, axis=0)
@@ -136,10 +148,22 @@ if __name__ == '__main__':
     sigma = solver_timsteps.max() / np.mean(solver_steps)
     solver_mean, (solver_low, solver_upp) = gaussian_filter_bt(time_grid, solver_timsteps, solver_objgaps, sigma, n_boot=10)
 
+    sp_timsteps = np.concatenate(sp_timsteps, axis=0)
+    sp_objgaps = np.concatenate(sp_objgaps, axis=0)
+    sort_idx = np.argsort(sp_timsteps)
+    sp_timsteps = sp_timsteps[sort_idx]
+    sp_objgaps = sp_objgaps[sort_idx]
+
+    time_grid = np.linspace(0, sp_timsteps.max(), sp_timsteps.shape[0])
+    sigma = sp_timsteps.max() / np.mean(sp_steps)
+    sp_mean, (sp_low, sp_upp) = gaussian_filter_bt(time_grid, sp_timsteps, sp_objgaps, sigma, n_boot=10)
+
     ax = sns.lineplot(x=gnn_timsteps, y=gnn_mean, label='GNN', color='r')
     ax.fill_between(gnn_timsteps, gnn_low, gnn_upp, color='r', alpha=0.5)
     ax = sns.lineplot(x=solver_timsteps, y=solver_mean, label='solver', color='b')
     ax.fill_between(solver_timsteps, solver_low, solver_upp, color='b', alpha=0.5)
+    ax = sns.lineplot(x=sp_timsteps, y=sp_mean, label='scipy', color='g')
+    ax.fill_between(sp_timsteps, sp_low, sp_upp, color='g', alpha=0.5)
     ax.set(xscale='log')
     ax.set(yscale='log')
     plt.ylim(1.e-5, 1.)

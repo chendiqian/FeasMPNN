@@ -77,7 +77,7 @@ if __name__ == '__main__':
                               use_res=args.use_res,
                               conv_sequence=args.conv_sequence)
     model = CycleGNN(1, args.ipm_eval_steps, gnn).to(device)
-    data = next(iter(dataloader))
+    data = next(iter(dataloader)).to(device)
     _ = gnn(data)
 
     for ckpt in [n for n in os.listdir(args.modelpath) if n.endswith('.pt')]:

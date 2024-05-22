@@ -1,8 +1,7 @@
 import numpy as np
 import torch
 from torch_geometric.utils import to_dense_batch
-from data.utils import l1_normalize, batch_line_search
-import time
+from data.utils import l1_normalize, batch_line_search, sync_timer
 
 
 class CycleGNN(torch.nn.Module):
@@ -61,7 +60,7 @@ class CycleGNN(torch.nn.Module):
         for i in range(self.num_eval_steps):
             # prediction
             if return_intern:
-                t_start = time.time()
+                t_start = sync_timer()
             pred = self.gnn(data)
             direction = pred + tau / (data.x_start + tau)
             tau = max(tau / 2., 1.e-5)
@@ -73,7 +72,7 @@ class CycleGNN(torch.nn.Module):
             # update
             data.x_start = data.x_start + alpha * pred
             if return_intern:
-                t_end = time.time()
+                t_end = sync_timer()
             current_batched_x, _ = to_dense_batch(data.x_start, data['vals'].batch)  # batchsize x max_nnodes
             current_obj = (current_batched_x * batched_c).sum(1)
             better_mask = current_obj < current_best_obj

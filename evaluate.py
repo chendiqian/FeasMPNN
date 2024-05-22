@@ -136,11 +136,17 @@ if __name__ == '__main__':
     sigma = solver_timsteps.max() / np.mean(solver_steps)
     solver_mean, (solver_low, solver_upp) = gaussian_filter_bt(time_grid, solver_timsteps, solver_objgaps, sigma, n_boot=10)
 
-    a = sns.lineplot(x=gnn_timsteps, y=gnn_mean, label='GNN', color='r')
-    a.fill_between(gnn_timsteps, gnn_low, gnn_upp, color='r', alpha=0.5)
-    b = sns.lineplot(x=solver_timsteps, y=solver_mean, label='solver', color='b')
-    b.fill_between(solver_timsteps, solver_low, solver_upp, color='b', alpha=0.5)
-
+    ax = sns.lineplot(x=gnn_timsteps, y=gnn_mean, label='GNN', color='r')
+    ax.fill_between(gnn_timsteps, gnn_low, gnn_upp, color='r', alpha=0.5)
+    ax = sns.lineplot(x=solver_timsteps, y=solver_mean, label='solver', color='b')
+    ax.fill_between(solver_timsteps, solver_low, solver_upp, color='b', alpha=0.5)
+    ax.set(xscale='log')
+    ax.set(yscale='log')
+    plt.ylim(1.e-5, 1.)
+    plt.xlabel("Time (sec)")
+    plt.ylabel("Obj. rel error")
     plt.legend()
-
     plt.savefig('temp.png', dpi=300)
+
+    if args.use_wandb:
+        wandb.log({"plot": wandb.Image(ax)})

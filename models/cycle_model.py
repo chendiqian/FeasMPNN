@@ -24,6 +24,8 @@ class CycleGNN(torch.nn.Module):
         tau = self.init_tau
         pred_list = []
         label_list = []
+
+        batch = data['vals'].batch
         for i in range(self.num_steps):
             # prediction
             pred = self.gnn(data)
@@ -37,9 +39,14 @@ class CycleGNN(torch.nn.Module):
             tau = max(tau / 2., 1.e-5)
 
             # projection
-            pred = (data.proj_matrix @ direction[:, None]).squeeze()
+            if data.proj_matrix.dim() == 2:  # only 1 graph
+                pred = torch.einsum('mn,n->m', data.proj_matrix, direction)
+            else:
+                direction, nmask = to_dense_batch(direction, batch)
+                pred = torch.einsum('bnm,bm->bn', data.proj_matrix, direction)[nmask]
+
             # line search
-            alpha = batch_line_search(data.x_start, pred, data['vals'].batch, self.step_alpha) * 0.995
+            alpha = batch_line_search(data.x_start, pred, batch, self.step_alpha) * 0.995
             # update
             data.x_start = data.x_start + alpha * pred
 
@@ -57,6 +64,8 @@ class CycleGNN(torch.nn.Module):
         batched_c, _ = to_dense_batch(data.c, data['vals'].batch)  # batchsize x max_nnodes
         opt_obj = data.obj_solution
         current_best_obj = (current_best_batched_x * batched_c).sum(1)
+
+        batch = data['vals'].batch
         for i in range(self.num_eval_steps):
             # prediction
             if return_intern:
@@ -66,14 +75,19 @@ class CycleGNN(torch.nn.Module):
             tau = max(tau / 2., 1.e-5)
 
             # projection
-            pred = (data.proj_matrix @ direction[:, None]).squeeze()
+            if data.proj_matrix.dim() == 2:  # only 1 graph
+                pred = torch.einsum('mn,n->m', data.proj_matrix, direction)
+            else:
+                direction, nmask = to_dense_batch(direction, batch)
+                pred = torch.einsum('bnm,bm->bn', data.proj_matrix, direction)[nmask]
+
             # line search
-            alpha = batch_line_search(data.x_start, pred, data['vals'].batch, self.step_alpha) * 0.995
+            alpha = batch_line_search(data.x_start, pred, batch, self.step_alpha) * 0.995
             # update
             data.x_start = data.x_start + alpha * pred
             if return_intern:
                 t_end = sync_timer()
-            current_batched_x, _ = to_dense_batch(data.x_start, data['vals'].batch)  # batchsize x max_nnodes
+            current_batched_x, _ = to_dense_batch(data.x_start, batch)  # batchsize x max_nnodes
             current_obj = (current_batched_x * batched_c).sum(1)
             better_mask = current_obj < current_best_obj
             current_best_obj = torch.where(better_mask, current_obj, current_best_obj)

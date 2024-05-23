@@ -117,3 +117,17 @@ def gaussian_filter_bt(xs_grid, xs_data, ys_data, sigma, n_boot=2000):
     mean = bootstrap_res.mean(0)
     ci = sns.utils.ci(bootstrap_res, axis=0)
     return mean, ci
+
+
+def square_idx(n):
+    narange = np.arange(n)
+    rows = narange.repeat(n)
+    cols = np.tile(narange, n)
+    return rows, cols
+
+
+def torch_square_idx(n, device='cpu'):
+    narange = torch.arange(n, device=device)
+    rows = torch.repeat_interleave(narange, n)
+    cols = narange.repeat(n)
+    return rows, cols

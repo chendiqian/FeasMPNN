@@ -44,6 +44,7 @@ def args_parser():
     parser.add_argument('--ipm_train_steps', type=int, default=8)
     parser.add_argument('--ipm_eval_steps', type=int, default=64)
     parser.add_argument('--conv', type=str, default='gcnconv')
+    parser.add_argument('--hetero_aggr', type=str, default='mean')
     parser.add_argument('--hidden', type=int, default=128)
     parser.add_argument('--num_conv_layers', type=int, default=6)
     parser.add_argument('--num_pred_layers', type=int, default=2)
@@ -112,6 +113,7 @@ if __name__ == '__main__':
                                   num_conv_layers=args.num_conv_layers,
                                   num_pred_layers=args.num_pred_layers,
                                   num_mlp_layers=args.num_mlp_layers,
+                                  hetero_aggr=args.hetero_aggr,
                                   dropout=args.dropout,
                                   norm=args.norm,
                                   use_res=args.use_res,

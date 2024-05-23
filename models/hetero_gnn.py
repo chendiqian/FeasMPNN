@@ -77,6 +77,7 @@ class TripartiteHeteroGNN(torch.nn.Module):
                  num_conv_layers,
                  num_pred_layers,
                  num_mlp_layers,
+                 hetero_aggr,
                  dropout,
                  norm,
                  use_res,
@@ -103,7 +104,7 @@ class TripartiteHeteroGNN(torch.nn.Module):
                     ('obj', 'to', 'vals'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), o2v),
                     ('cons', 'to', 'obj'): (get_conv_layer(conv, hid_dim, num_mlp_layers, None), c2o),
                     ('obj', 'to', 'cons'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), o2c),
-                }, aggr='cat'))
+                }, aggr=hetero_aggr))
 
         self.predictor = MLP([-1] + [hid_dim] * (num_pred_layers - 1) + [1], norm=None)
 

@@ -1,7 +1,13 @@
 import numpy as np
 import torch
 from torch_geometric.utils import to_dense_batch
-from data.utils import l1_normalize, batch_line_search, sync_timer
+from utils.benchmark import sync_timer
+from solver.line_search import batch_line_search
+
+
+def l1_normalize(x: torch.Tensor, dim=0):
+    x /= x.abs().max(dim=dim, keepdims=True).values + 1.e-7
+    return x
 
 
 class CycleGNN(torch.nn.Module):

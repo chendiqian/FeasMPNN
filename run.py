@@ -13,7 +13,8 @@ from tqdm import tqdm
 import wandb
 
 from data.dataset import LPDataset
-from data.utils import args_set_bool, collate_fn_lp
+from data.collate_func import collate_fn_lp
+from utils.parsers import args_set_bool
 from data.prefetch_generator import BackgroundGenerator
 from models.hetero_gnn import TripartiteHeteroGNN
 from models.cycle_model import CycleGNN

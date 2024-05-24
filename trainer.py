@@ -61,7 +61,6 @@ class Trainer:
 
         return train_losses.item() / num_graphs, cos_sims.item() / num_graphs
 
-
     @torch.no_grad()
     def eval(self, dataloader, model):
         model.eval()
@@ -69,6 +68,7 @@ class Trainer:
         val_losses = 0.
         cos_sims = 0.
         num_graphs = 0
+        obj_gaps = []
         for i, data in enumerate(dataloader):
             data = data.to(self.device)
             pred, label = model(data)
@@ -79,7 +79,11 @@ class Trainer:
             cos_sims += cos_sim * data.num_graphs
             num_graphs += data.num_graphs
 
-        return val_losses.item() / num_graphs, cos_sims.item() / num_graphs
+            obj_gap, *_ = model.evaluation(data)
+            obj_gaps.append(obj_gap)
+
+        objs = torch.cat(obj_gaps, dim=0).mean().item()
+        return val_losses.item() / num_graphs, cos_sims.item() / num_graphs, objs
 
     def get_loss(self, pred, label, batch):
         loss = self.loss_func(pred - label)  # nnodes x layers
@@ -95,15 +99,3 @@ class Trainer:
         cos = torch.vmap(self.cos_metric, in_dims=(2, 2, None), out_dims=1)(pred_batch, label_batch, target)
         cos = cos.mean()
         return cos
-
-    @torch.no_grad()
-    def get_pseudo_ipm_solution(self, dataloader, model):
-        model.eval()
-
-        obj_gaps = []
-        for i, data in enumerate(dataloader):
-            data = data.to(self.device)
-            obj_gap, *_ = model.evaluation(data)
-            obj_gaps.append(obj_gap)
-
-        return torch.cat(obj_gaps, dim=0).mean().item()

@@ -140,13 +140,8 @@ if __name__ == '__main__':
 
         pbar = tqdm(range(args.epoch))
         for epoch in pbar:
-            # train_loss, train_cos_sim = trainer.train(train_loader, model, optimizer)
-            # val_loss, val_cos_sim = trainer.eval(val_loader, model)
-            # val_obj_gap = trainer.get_pseudo_ipm_solution(val_loader, model)
-
             train_loss, train_cos_sim = trainer.train(BackgroundGenerator(train_loader, device, 4), model, optimizer)
-            val_loss, val_cos_sim = trainer.eval(BackgroundGenerator(val_loader, device, 4), model)
-            val_obj_gap = trainer.get_pseudo_ipm_solution(BackgroundGenerator(val_loader, device, 4), model)
+            val_loss, val_cos_sim, val_obj_gap = trainer.eval(BackgroundGenerator(val_loader, device, 4), model)
 
             # imo cosine similarity makes more sense, we don't care about norm but direction
             if scheduler is not None:
@@ -184,8 +179,7 @@ if __name__ == '__main__':
         best_val_objgaps.append(trainer.best_objgap)
 
         model.load_state_dict(best_model)
-        test_loss, test_cos_sim = trainer.eval(test_loader, model)
-        test_obj_gap = trainer.get_pseudo_ipm_solution(test_loader, model)
+        test_loss, test_cos_sim, test_obj_gap = trainer.eval(test_loader, model)
         test_losses.append(test_loss)
         test_cos_sims.append(test_cos_sim)
         test_objgaps.append(test_obj_gap)

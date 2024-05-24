@@ -154,8 +154,6 @@ class BipartiteHeteroGNN(torch.nn.Module):
 
         self.encoder = torch.nn.ModuleDict({'vals': MLP([-1, hid_dim, hid_dim], norm=norm),
                                             'cons': MLP([-1, hid_dim, hid_dim], norm=norm)})
-        self.start_pos_encoder = MLP([-1, hid_dim, hid_dim], norm=None)
-        self.obj_coeff_encoder = MLP([-1, hid_dim, hid_dim], norm=None)
 
         self.gcns = torch.nn.ModuleList()
         for layer in range(num_conv_layers):
@@ -171,10 +169,11 @@ class BipartiteHeteroGNN(torch.nn.Module):
         batch_dict = data.batch_dict
         x_dict, edge_index_dict, edge_attr_dict = data.x_dict, data.edge_index_dict, data.edge_attr_dict
 
-        x_dict['cons'] = self.encoder['cons'](x_dict['cons'])
-        x_dict['vals'] = self.encoder['vals'](x_dict['vals']) + \
-                         self.start_pos_encoder(data.x_start[:, None]) + \
-                         self.obj_coeff_encoder(data.c[:, None])
+        x_dict['cons'] = self.encoder['cons'](torch.cat([x_dict['cons'],
+                                                         data.b[:, None]], dim=1))
+        x_dict['vals'] = self.encoder['vals'](torch.cat([x_dict['vals'],
+                                                         data.x_start[:, None],
+                                                         data.c[:, None]], dim=1))
 
         hiddens = []
         for i in range(self.num_layers):

@@ -83,7 +83,6 @@ if __name__ == '__main__':
     dataset._data.A_col = None
     dataset._data.A_row = None
     dataset._data.A_val = None
-    dataset._data.b = None
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     collate_fn = partial(collate_fn_lp_bi, device=device) if args.bipartite else partial(collate_fn_lp, device=device)

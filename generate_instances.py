@@ -443,31 +443,32 @@ def generate_capacited_facility_location(n_customers, n_facilities, ratio, rng):
     rng : numpy.random.RandomState
         A rng number generator.
     """
-    c_x = rng.rand(n_customers)
-    c_y = rng.rand(n_customers)
+    # c_x = rng.rand(n_customers)
+    # c_y = rng.rand(n_customers)
+    #
+    # f_x = rng.rand(n_facilities)
+    # f_y = rng.rand(n_facilities)
 
-    f_x = rng.rand(n_facilities)
-    f_y = rng.rand(n_facilities)
-
-    demands = rng.randint(5, 35 + 1, size=n_customers)
-    capacities = rng.randint(10, 160 + 1, size=n_facilities)
-    fixed_costs = rng.randint(100, 110 + 1, size=n_facilities) * np.sqrt(capacities) \
-                  + rng.randint(90 + 1, size=n_facilities)
-    fixed_costs = fixed_costs.astype(int)
+    demands = (rng.rand(n_customers) + 1) / 2
+    capacities = (rng.rand(n_facilities) + 1) / 2
+    fixed_costs = (rng.rand(n_facilities) + 1) / 2
+    # fixed_costs = fixed_costs.astype(int)
 
     total_demand = demands.sum()
     total_capacity = capacities.sum()
 
     # adjust capacities according to ratio
     capacities = capacities * ratio * total_demand / total_capacity
-    capacities = capacities.astype(int)
+    # capacities = capacities.astype(int)
     total_capacity = capacities.sum()
 
     # transportation costs
-    trans_costs = np.sqrt(
-        (c_x.reshape((-1, 1)) - f_x.reshape((1, -1))) ** 2 \
-        + (c_y.reshape((-1, 1)) - f_y.reshape((1, -1))) ** 2) * 10 * demands.reshape(
-        (-1, 1))
+    # trans_costs = np.sqrt(
+    #     (c_x.reshape((-1, 1)) - f_x.reshape((1, -1))) ** 2 \
+    #     + (c_y.reshape((-1, 1)) - f_y.reshape((1, -1))) ** 2) * demands.reshape(
+    #     (-1, 1))
+
+    trans_costs = rng.rand(n_customers, n_facilities)
 
     c = np.concatenate([trans_costs.flatten(), fixed_costs])
 

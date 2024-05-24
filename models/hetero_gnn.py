@@ -133,3 +133,62 @@ class TripartiteHeteroGNN(torch.nn.Module):
 
         x = self.predictor(hiddens[-1])
         return x.squeeze()
+
+
+class BipartiteHeteroGNN(torch.nn.Module):
+    def __init__(self,
+                 conv,
+                 hid_dim,
+                 num_conv_layers,
+                 num_pred_layers,
+                 num_mlp_layers,
+                 hetero_aggr,
+                 dropout,
+                 norm,
+                 use_res):
+        super().__init__()
+
+        self.dropout = dropout
+        self.num_layers = num_conv_layers
+        self.use_res = use_res
+
+        self.encoder = torch.nn.ModuleDict({'vals': MLP([-1, hid_dim, hid_dim], norm=norm),
+                                            'cons': MLP([-1, hid_dim, hid_dim], norm=norm)})
+        self.start_pos_encoder = MLP([-1, hid_dim, hid_dim], norm=None)
+        self.obj_coeff_encoder = MLP([-1, hid_dim, hid_dim], norm=None)
+
+        self.gcns = torch.nn.ModuleList()
+        for layer in range(num_conv_layers):
+            self.gcns.append(
+                HeteroConv({
+                    ('cons', 'to', 'vals'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), 1),
+                    ('vals', 'to', 'cons'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), 0),
+                }, aggr=hetero_aggr))
+
+        self.predictor = MLP([-1] + [hid_dim] * (num_pred_layers - 1) + [1], norm=None)
+
+    def forward(self, data):
+        batch_dict = data.batch_dict
+        x_dict, edge_index_dict, edge_attr_dict = data.x_dict, data.edge_index_dict, data.edge_attr_dict
+
+        x_dict['cons'] = self.encoder['cons'](x_dict['cons'])
+        x_dict['vals'] = self.encoder['vals'](x_dict['vals']) + \
+                         self.start_pos_encoder(data.x_start[:, None]) + \
+                         self.obj_coeff_encoder(data.c[:, None])
+
+        hiddens = []
+        for i in range(self.num_layers):
+            h1 = x_dict
+            h2 = self.gcns[i](x_dict, edge_index_dict, edge_attr_dict, batch_dict)
+            keys = h2.keys()
+            hiddens.append(h2['vals'])
+
+            if i < self.num_layers - 1:
+                if self.use_res:
+                    x_dict = {k: (F.relu(h2[k]) + h1[k]) / 2 for k in keys}
+                else:
+                    x_dict = {k: F.relu(h2[k]) for k in keys}
+                x_dict = {k: F.dropout(F.relu(x_dict[k]), p=self.dropout, training=self.training) for k in keys}
+
+        x = self.predictor(hiddens[-1])
+        return x.squeeze()

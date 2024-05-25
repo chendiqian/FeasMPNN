@@ -77,6 +77,7 @@ class CycleGNN(torch.nn.Module):
             if return_intern:
                 t_start = sync_timer()
             pred = self.gnn(data)
+            pred = l1_normalize(pred)
             direction = pred + tau / (data.x_start + tau)
             tau = max(tau / 2., 1.e-5)
 

@@ -14,10 +14,10 @@ from tqdm import tqdm
 
 from data.dataset import LPDataset
 from utils.benchmark import sync_timer, gaussian_filter_bt
-from data.collate_func import collate_fn_lp
+from data.collate_func import collate_fn_lp, collate_fn_lp_bi
 from utils.parsers import args_set_bool
 from models.cycle_model import CycleGNN
-from models.hetero_gnn import TripartiteHeteroGNN
+from models.hetero_gnn import TripartiteHeteroGNN, BipartiteHeteroGNN
 from solver.customized_solver import ipm_overleaf
 from solver.linprog import linprog
 
@@ -32,6 +32,7 @@ def args_parser():
     parser.add_argument('--use_wandb', type=str, default='false')
 
     # model related
+    parser.add_argument('--bipartite', type=str, default='false')
     parser.add_argument('--ipm_eval_steps', type=int, default=32)
     parser.add_argument('--conv', type=str, default='gcnconv')
     parser.add_argument('--hidden', type=int, default=128)
@@ -61,26 +62,38 @@ if __name__ == '__main__':
     dataset = LPDataset(args.datapath)[-10:]
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    collate_fn = partial(collate_fn_lp_bi, device=device) if args.bipartite else partial(collate_fn_lp, device=device)
     dataloader = DataLoader(dataset,
                             batch_size=1,
                             shuffle=False,
-                            collate_fn=partial(collate_fn_lp, device=device))
+                            collate_fn=collate_fn)
 
     gnn_objgaps = []
     gnn_timsteps = []
     gnn_arange = []
 
     # warmup and set dimensions
-    gnn = TripartiteHeteroGNN(conv=args.conv,
-                              hid_dim=args.hidden,
-                              num_conv_layers=args.num_conv_layers,
-                              num_pred_layers=args.num_pred_layers,
-                              num_mlp_layers=args.num_mlp_layers,
-                              hetero_aggr=args.hetero_aggr,
-                              dropout=args.dropout,
-                              norm=args.norm,
-                              use_res=args.use_res,
-                              conv_sequence=args.conv_sequence)
+    if args.bipartite:
+        gnn = BipartiteHeteroGNN(conv=args.conv,
+                                 hid_dim=args.hidden,
+                                 num_conv_layers=args.num_conv_layers,
+                                 num_pred_layers=args.num_pred_layers,
+                                 num_mlp_layers=args.num_mlp_layers,
+                                 hetero_aggr=args.hetero_aggr,
+                                 dropout=args.dropout,
+                                 norm=args.norm,
+                                 use_res=args.use_res)
+    else:
+        gnn = TripartiteHeteroGNN(conv=args.conv,
+                                  hid_dim=args.hidden,
+                                  num_conv_layers=args.num_conv_layers,
+                                  num_pred_layers=args.num_pred_layers,
+                                  num_mlp_layers=args.num_mlp_layers,
+                                  hetero_aggr=args.hetero_aggr,
+                                  dropout=args.dropout,
+                                  norm=args.norm,
+                                  use_res=args.use_res,
+                                  conv_sequence=args.conv_sequence)
     model = CycleGNN(1, args.ipm_eval_steps, gnn).to(device)
     data = next(iter(dataloader)).to(device)
     _ = gnn(data)

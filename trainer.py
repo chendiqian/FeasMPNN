@@ -46,6 +46,8 @@ class Trainer:
             cos_sims += cos_sim.detach() * data.num_graphs
             num_graphs += data.num_graphs
 
+            # use both L2 loss and Cos similarity loss
+            loss = loss + cos_sim
             update_count += 1
             loss = loss / float(loss_scaling_lst[0])  # scale the loss
             loss.backward()

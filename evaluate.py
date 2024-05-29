@@ -35,7 +35,6 @@ def args_parser():
     parser.add_argument('--ipm_eval_steps', type=int, default=32)
     parser.add_argument('--conv', type=str, default='gcnconv')
     parser.add_argument('--hidden', type=int, default=128)
-    parser.add_argument('--hetero_aggr', type=str, default='mean')
     parser.add_argument('--num_conv_layers', type=int, default=6)
     parser.add_argument('--num_pred_layers', type=int, default=2)
     parser.add_argument('--num_mlp_layers', type=int, default=2, help='mlp layers within GENConv')
@@ -74,7 +73,6 @@ if __name__ == '__main__':
                              num_conv_layers=args.num_conv_layers,
                              num_pred_layers=args.num_pred_layers,
                              num_mlp_layers=args.num_mlp_layers,
-                             hetero_aggr=args.hetero_aggr,
                              norm=args.norm)
     model = CycleGNN(1, args.ipm_eval_steps, gnn).to(device)
     data = next(iter(dataloader)).to(device)

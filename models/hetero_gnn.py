@@ -45,7 +45,6 @@ class BipartiteHeteroGNN(torch.nn.Module):
                  num_conv_layers,
                  num_pred_layers,
                  num_mlp_layers,
-                 hetero_aggr,
                  norm):
         super().__init__()
 
@@ -60,7 +59,7 @@ class BipartiteHeteroGNN(torch.nn.Module):
                 HeteroConv({
                     ('cons', 'to', 'vals'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), 1),
                     ('vals', 'to', 'cons'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), 0),
-                }, aggr=hetero_aggr))
+                }))
 
         self.predictor = MLP([-1] + [hid_dim] * (num_pred_layers - 1) + [1], norm=None)
 

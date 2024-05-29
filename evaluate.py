@@ -14,10 +14,10 @@ from tqdm import tqdm
 
 from data.dataset import LPDataset
 from utils.benchmark import sync_timer, gaussian_filter_bt
-from data.collate_func import collate_fn_lp, collate_fn_lp_bi
+from data.collate_func import collate_fn_lp_bi
 from utils.parsers import args_set_bool
 from models.cycle_model import CycleGNN
-from models.hetero_gnn import TripartiteHeteroGNN, BipartiteHeteroGNN
+from models.hetero_gnn import BipartiteHeteroGNN
 from solver.customized_solver import ipm_overleaf
 from solver.linprog import linprog
 
@@ -32,7 +32,6 @@ def args_parser():
     parser.add_argument('--use_wandb', type=str, default='false')
 
     # model related
-    parser.add_argument('--bipartite', type=str, default='false')
     parser.add_argument('--ipm_eval_steps', type=int, default=32)
     parser.add_argument('--conv', type=str, default='gcnconv')
     parser.add_argument('--hidden', type=int, default=128)
@@ -40,10 +39,7 @@ def args_parser():
     parser.add_argument('--num_conv_layers', type=int, default=6)
     parser.add_argument('--num_pred_layers', type=int, default=2)
     parser.add_argument('--num_mlp_layers', type=int, default=2, help='mlp layers within GENConv')
-    parser.add_argument('--conv_sequence', type=str, default='cov')
     parser.add_argument('--norm', type=str, default='graphnorm')  # empirically better
-    parser.add_argument('--use_res', type=str, default='false')  # does not help
-    parser.add_argument('--dropout', type=float, default=0.)  # must
 
     return parser.parse_args()
 
@@ -62,7 +58,7 @@ if __name__ == '__main__':
     dataset = LPDataset(args.datapath)[-10:]
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    collate_fn = partial(collate_fn_lp_bi, device=device) if args.bipartite else partial(collate_fn_lp, device=device)
+    collate_fn = partial(collate_fn_lp_bi, device=device)
     dataloader = DataLoader(dataset,
                             batch_size=1,
                             shuffle=False,
@@ -73,27 +69,13 @@ if __name__ == '__main__':
     gnn_arange = []
 
     # warmup and set dimensions
-    if args.bipartite:
-        gnn = BipartiteHeteroGNN(conv=args.conv,
-                                 hid_dim=args.hidden,
-                                 num_conv_layers=args.num_conv_layers,
-                                 num_pred_layers=args.num_pred_layers,
-                                 num_mlp_layers=args.num_mlp_layers,
-                                 hetero_aggr=args.hetero_aggr,
-                                 dropout=args.dropout,
-                                 norm=args.norm,
-                                 use_res=args.use_res)
-    else:
-        gnn = TripartiteHeteroGNN(conv=args.conv,
-                                  hid_dim=args.hidden,
-                                  num_conv_layers=args.num_conv_layers,
-                                  num_pred_layers=args.num_pred_layers,
-                                  num_mlp_layers=args.num_mlp_layers,
-                                  hetero_aggr=args.hetero_aggr,
-                                  dropout=args.dropout,
-                                  norm=args.norm,
-                                  use_res=args.use_res,
-                                  conv_sequence=args.conv_sequence)
+    gnn = BipartiteHeteroGNN(conv=args.conv,
+                             hid_dim=args.hidden,
+                             num_conv_layers=args.num_conv_layers,
+                             num_pred_layers=args.num_pred_layers,
+                             num_mlp_layers=args.num_mlp_layers,
+                             hetero_aggr=args.hetero_aggr,
+                             norm=args.norm)
     model = CycleGNN(1, args.ipm_eval_steps, gnn).to(device)
     data = next(iter(dataloader)).to(device)
     _ = gnn(data)

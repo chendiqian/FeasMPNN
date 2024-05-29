@@ -13,10 +13,10 @@ from tqdm import tqdm
 import wandb
 
 from data.dataset import LPDataset
-from data.collate_func import collate_fn_lp, collate_fn_lp_bi
+from data.collate_func import collate_fn_lp_bi
 from utils.parsers import args_set_bool
 from data.prefetch_generator import BackgroundGenerator
-from models.hetero_gnn import TripartiteHeteroGNN, BipartiteHeteroGNN
+from models.hetero_gnn import BipartiteHeteroGNN
 from models.cycle_model import CycleGNN
 from trainer import Trainer
 
@@ -41,7 +41,6 @@ def args_parser():
     parser.add_argument('--micro_batch', type=int, default=1)
 
     # model related
-    parser.add_argument('--bipartite', type=str, default='false')
     parser.add_argument('--ipm_train_steps', type=int, default=8)
     parser.add_argument('--ipm_eval_steps', type=int, default=64)
     parser.add_argument('--conv', type=str, default='gcnconv')
@@ -50,10 +49,7 @@ def args_parser():
     parser.add_argument('--num_conv_layers', type=int, default=6)
     parser.add_argument('--num_pred_layers', type=int, default=2)
     parser.add_argument('--num_mlp_layers', type=int, default=2, help='mlp layers within GENConv')
-    parser.add_argument('--conv_sequence', type=str, default='cov')
     parser.add_argument('--norm', type=str, default='graphnorm')  # empirically better
-    parser.add_argument('--use_res', type=str, default='false')  # does not help
-    parser.add_argument('--dropout', type=float, default=0.)  # must
 
     return parser.parse_args()
 
@@ -85,7 +81,7 @@ if __name__ == '__main__':
     dataset._data.A_val = None
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    collate_fn = partial(collate_fn_lp_bi, device=device) if args.bipartite else partial(collate_fn_lp, device=device)
+    collate_fn = partial(collate_fn_lp_bi, device=device)
     train_loader = DataLoader(dataset[:int(len(dataset) * 0.8)],
                               batch_size=args.batchsize,
                               shuffle=True,
@@ -109,27 +105,13 @@ if __name__ == '__main__':
     for run in range(args.runs):
         if args.ckpt:
             os.mkdir(os.path.join(log_folder_name, f'run{run}'))
-        if args.bipartite:
-            gnn = BipartiteHeteroGNN(conv=args.conv,
-                                     hid_dim=args.hidden,
-                                     num_conv_layers=args.num_conv_layers,
-                                     num_pred_layers=args.num_pred_layers,
-                                     num_mlp_layers=args.num_mlp_layers,
-                                     hetero_aggr=args.hetero_aggr,
-                                     dropout=args.dropout,
-                                     norm=args.norm,
-                                     use_res=args.use_res)
-        else:
-            gnn = TripartiteHeteroGNN(conv=args.conv,
-                                      hid_dim=args.hidden,
-                                      num_conv_layers=args.num_conv_layers,
-                                      num_pred_layers=args.num_pred_layers,
-                                      num_mlp_layers=args.num_mlp_layers,
-                                      hetero_aggr=args.hetero_aggr,
-                                      dropout=args.dropout,
-                                      norm=args.norm,
-                                      use_res=args.use_res,
-                                      conv_sequence=args.conv_sequence)
+        gnn = BipartiteHeteroGNN(conv=args.conv,
+                                 hid_dim=args.hidden,
+                                 num_conv_layers=args.num_conv_layers,
+                                 num_pred_layers=args.num_pred_layers,
+                                 num_mlp_layers=args.num_mlp_layers,
+                                 hetero_aggr=args.hetero_aggr,
+                                 norm=args.norm)
         model = CycleGNN(args.ipm_train_steps, args.ipm_eval_steps, gnn).to(device)
         best_model = copy.deepcopy(model.state_dict())
 

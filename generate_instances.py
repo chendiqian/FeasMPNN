@@ -5,7 +5,7 @@ import scipy
 import scipy.sparse
 
 
-def generate_setcover(nrows_l, nrows_u, ncols_l, ncols_u, density, rng):
+def generate_setcover(nrows, ncols, nnzrs, rng):
     """
     Generates a setcover instance with specified characteristics, and writes
     it to a file in the LP format.
@@ -26,9 +26,6 @@ def generate_setcover(nrows_l, nrows_u, ncols_l, ncols_u, density, rng):
     rng: numpy.random.RandomState
         Random number generator
     """
-    nrows = rng.randint(nrows_l, nrows_u)
-    ncols = rng.randint(ncols_l, ncols_u)
-    nnzrs = int(nrows * ncols * density)
 
     assert nnzrs >= nrows  # at least 1 col per row
     assert nnzrs >= 2 * ncols  # at leats 2 rows per col
@@ -443,42 +440,33 @@ def generate_capacited_facility_location(n_customers, n_facilities, ratio, rng):
     rng : numpy.random.RandomState
         A rng number generator.
     """
-    # c_x = rng.rand(n_customers)
-    # c_y = rng.rand(n_customers)
-    #
-    # f_x = rng.rand(n_facilities)
-    # f_y = rng.rand(n_facilities)
-
-    demands = (rng.rand(n_customers) + 1) / 2
-    capacities = (rng.rand(n_facilities) + 1) / 2
-    fixed_costs = (rng.rand(n_facilities) + 1) / 2
-    # fixed_costs = fixed_costs.astype(int)
+    demands = rng.randn(n_customers)
+    demands[demands < 0] = 0.
+    capacities = rng.rand(n_facilities)
 
     total_demand = demands.sum()
     total_capacity = capacities.sum()
-
     # adjust capacities according to ratio
     capacities = capacities * ratio * total_demand / total_capacity
     # capacities = capacities.astype(int)
-    total_capacity = capacities.sum()
 
-    # transportation costs
-    # trans_costs = np.sqrt(
-    #     (c_x.reshape((-1, 1)) - f_x.reshape((1, -1))) ** 2 \
-    #     + (c_y.reshape((-1, 1)) - f_y.reshape((1, -1))) ** 2) * demands.reshape(
-    #     (-1, 1))
-
-    trans_costs = rng.rand(n_customers, n_facilities)
-
-    c = np.concatenate([trans_costs.flatten(), fixed_costs])
+    c = (rng.rand(n_facilities * n_customers + n_facilities) + 1) / 2
 
     A, b = [], []
+    # sum_j x_ij = 1
+    # fac j provides to customers i
     for i in range(n_customers):
         row = np.zeros((n_customers, n_facilities))
         row[i, :] = 1
         row = np.concatenate([row.flatten(), np.zeros(n_facilities)])
         A.append(row)
         b.append(1)
+
+    A_eq = np.array(A)
+    b_eq = np.array(b)
+
+    A, b = [], []
+    # sum_i demand_i * x_ij - volume_j * y_j <= 0
     for j in range(n_facilities):
         row = np.zeros((n_customers, n_facilities))
         row[:, j] = -demands
@@ -486,9 +474,11 @@ def generate_capacited_facility_location(n_customers, n_facilities, ratio, rng):
         A.append(row)
         b.append(0)
 
-    A.append(np.concatenate([np.zeros(n_customers * n_facilities), capacities]))
-    b.append(total_demand)
+    ## sum_j cap_j >= sum_i demand_i
+    # A.append(np.concatenate([np.zeros(n_customers * n_facilities), capacities]))
+    # b.append(total_demand)
 
+    # x_ij < y_j
     for i in range(n_customers):
         for j in range(n_facilities):
             row1 = np.zeros((n_customers, n_facilities))
@@ -499,5 +489,5 @@ def generate_capacited_facility_location(n_customers, n_facilities, ratio, rng):
             A.append(row)
             b.append(0)
 
-    A, b = -np.array(A), -np.array(b)
-    return A, b, c
+    A_ub, b_ub = -np.array(A), -np.array(b)
+    return A_eq, b_eq, A_ub, b_ub, c

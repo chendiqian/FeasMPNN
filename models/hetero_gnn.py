@@ -65,11 +65,10 @@ class BipartiteHeteroGNN(torch.nn.Module):
 
     def forward(self, data):
         batch_dict = data.batch_dict
-        x_dict, edge_index_dict, edge_attr_dict = data.x_dict, data.edge_index_dict, data.edge_attr_dict
+        edge_index_dict, edge_attr_dict = data.edge_index_dict, data.edge_attr_dict
 
-        x_dict['cons'] = self.b_encoder(data.b[:, None])
-        # use separate encoders for obj coefficient and starting point
-        x_dict['vals'] = self.start_pos_encoder(data.x_start[:, None]) + self.obj_encoder(data.c[:, None])
+        x_dict = {'cons': self.b_encoder(data.b[:, None]),
+                  'vals': self.start_pos_encoder(data.x_start[:, None]) + self.obj_encoder(data.c[:, None])}
 
         hiddens = []
         for i in range(self.num_layers):

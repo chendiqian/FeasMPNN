@@ -101,9 +101,9 @@ if __name__ == '__main__':
     for data in tqdm(dataset):
         c = data.c.numpy()
         b = data.b.numpy()
-        A = SparseTensor(row=data.A_row,
-                         col=data.A_col,
-                         value=data.A_val,
+        A = SparseTensor(row=data['cons', 'to', 'vals'].edge_index[0],
+                         col=data['cons', 'to', 'vals'].edge_index[1],
+                         value=data['cons', 'to', 'vals'].edge_attr.squeeze(),
                          is_sorted=True, trust_data=True).to_dense().numpy()
         opt_obj = data.obj_solution.item()
 

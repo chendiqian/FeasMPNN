@@ -61,7 +61,7 @@ def generate_setcover(nrows, ncols, nnzrs, rng):
         shape=(nrows, ncols)).toarray().T
 
     # objective coefficients
-    c = rng.rand(A.shape[1])
+    c = np.ones(A.shape[1]).astype(np.float32)
 
     A = -A
     b = np.ones(A.shape[0], dtype=np.float32) * -1

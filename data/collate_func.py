@@ -7,7 +7,7 @@ from torch_geometric.utils import to_dense_batch
 from solver.line_search import batch_line_search
 
 
-def collate_fn_lp_bi(graphs: List[Data], device: torch.device):
+def collate_fn_lp_bi(graphs: List[Data], perturb: bool = False, device: torch.device = 'cpu'):
     # this is bipartite graph, so we don't need the obj
     # but setting things in exclude_keys does not work
     # just remove keys in the first data of the datalist, because
@@ -36,22 +36,27 @@ def collate_fn_lp_bi(graphs: List[Data], device: torch.device):
 
     new_batch.proj_matrix = proj_matrix
 
-    # perturb the initial feasible solution
-    proj_matrix = proj_matrix.to(device, non_blocking=True)
-    batch = new_batch['vals'].batch.to(device, non_blocking=True)
-    if len(graphs) == 1:
-        direction = torch.randn(new_batch.x_solution.shape[0], 1, device=device)
-        direction = (proj_matrix @ direction).squeeze()
+    if perturb:
+        # perturb the initial feasible solution
+        proj_matrix = proj_matrix.to(device, non_blocking=True)
+        batch = new_batch['vals'].batch.to(device, non_blocking=True)
+        if len(graphs) == 1:
+            direction = torch.randn(new_batch.x_solution.shape[0], 1, device=device)
+            direction = (proj_matrix @ direction).squeeze()
+        else:
+            direction = torch.randn(new_batch.x_solution.shape[0], 1, device=device)
+            direction, nmask = to_dense_batch(direction, batch)
+            direction = torch.einsum('bnm,bmf->bnf', proj_matrix, direction)[nmask].squeeze()
+
+        alpha = batch_line_search(new_batch.x_feasible.to(device, non_blocking=True),
+                                  direction,
+                                  batch,
+                                  1.)
+
+        alpha = torch.rand(len(graphs), device=device)[batch] * alpha
+        new_batch.x_start = new_batch.x_feasible.to(device, non_blocking=True) + alpha * direction
     else:
-        direction = torch.randn(new_batch.x_solution.shape[0], 1, device=device)
-        direction, nmask = to_dense_batch(direction, batch)
-        direction = torch.einsum('bnm,bmf->bnf', proj_matrix, direction)[nmask].squeeze()
+        # use the fixed semi-random starting point
+        new_batch.x_start = new_batch.x_feasible
 
-    alpha = batch_line_search(new_batch.x_feasible.to(device, non_blocking=True),
-                              direction,
-                              batch,
-                              1.)
-
-    alpha = torch.rand(len(graphs), device=device)[batch] * alpha
-    new_batch.x_start = new_batch.x_feasible.to(device, non_blocking=True) + alpha * direction
     return new_batch

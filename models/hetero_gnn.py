@@ -75,9 +75,7 @@ class BipartiteHeteroGNN(torch.nn.Module):
             h2 = self.gcns[i](x_dict, edge_index_dict, edge_attr_dict, batch_dict)
             keys = h2.keys()
             hiddens.append(h2['vals'])
-
-            if i < self.num_layers - 1:
-                x_dict = {k: F.relu(h2[k]) for k in keys}
+            x_dict = {k: F.relu(h2[k]) for k in keys}
 
         x = self.predictor(hiddens[-1])
         return x.squeeze()

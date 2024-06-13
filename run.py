@@ -43,6 +43,7 @@ def args_parser():
     # model related
     parser.add_argument('--ipm_train_steps', type=int, default=8)
     parser.add_argument('--ipm_eval_steps', type=int, default=64)
+    parser.add_argument('--eval_every', type=int, default=1)
     parser.add_argument('--conv', type=str, default='gcnconv')
     parser.add_argument('--hidden', type=int, default=128)
     parser.add_argument('--num_conv_layers', type=int, default=6)
@@ -114,46 +115,46 @@ if __name__ == '__main__':
         best_model = copy.deepcopy(model.state_dict())
 
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=50, min_lr=1.e-5)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                         mode='min',
+                                                         factor=0.5,
+                                                         patience=50 // args.eval_every,
+                                                         min_lr=1.e-5)
 
         trainer = Trainer(device, args.losstype, args.micro_batch)
 
         pbar = tqdm(range(args.epoch))
         for epoch in pbar:
             train_loss, train_cos_sim = trainer.train(BackgroundGenerator(train_loader, device, 4), model, optimizer)
-            val_loss, val_cos_sim, val_obj_gap = trainer.eval(BackgroundGenerator(val_loader, device, 4), model)
+            stats_dict = {'train_loss': train_loss,
+                          'train_cos_sim': train_cos_sim,
+                          'lr': scheduler.optimizer.param_groups[0]["lr"]}
+            if epoch % args.eval_every == 0:
+                val_loss, val_cos_sim, val_obj_gap = trainer.eval(BackgroundGenerator(val_loader, device, 4), model)
 
-            # imo cosine similarity makes more sense, we don't care about norm but direction
-            if scheduler is not None:
-                scheduler.step(val_obj_gap)
+                if scheduler is not None:
+                    scheduler.step(val_obj_gap)
 
-            if trainer.best_objgap > val_obj_gap:
-                trainer.patience = 0
-                trainer.best_val_loss = val_loss
-                trainer.best_cos_sim = val_cos_sim
-                trainer.best_objgap = val_obj_gap
-                best_model = copy.deepcopy(model.state_dict())
-                if args.ckpt:
-                    torch.save(model.state_dict(), os.path.join(log_folder_name, f'run{run}', 'best_model.pt'))
-            else:
-                trainer.patience += 1
+                if trainer.best_objgap > val_obj_gap:
+                    trainer.patience = 0
+                    trainer.best_val_loss = val_loss
+                    trainer.best_cos_sim = val_cos_sim
+                    trainer.best_objgap = val_obj_gap
+                    best_model = copy.deepcopy(model.state_dict())
+                    if args.ckpt:
+                        torch.save(model.state_dict(), os.path.join(log_folder_name, f'run{run}', 'best_model.pt'))
+                else:
+                    trainer.patience += 1
 
-            if trainer.patience > args.patience:
-                break
+                if trainer.patience > (args.patience // args.eval_every + 1):
+                    break
 
-            pbar.set_postfix({'train_loss': train_loss,
-                              'train_cos_sim': train_cos_sim,
-                              'val_loss': val_loss,
-                              'val_cos_sim': val_cos_sim,
-                              'val_obj_gap': val_obj_gap,
-                              'lr': scheduler.optimizer.param_groups[0]["lr"]})
-            log_dict = {'train_loss': train_loss,
-                        'train_cos_sim': train_cos_sim,
-                        'val_loss': val_loss,
-                        'val_cos_sim': val_cos_sim,
-                        'val_obj_gap': val_obj_gap,
-                        'lr': scheduler.optimizer.param_groups[0]["lr"]}
-            wandb.log(log_dict)
+                stats_dict['val_loss'] = val_loss
+                stats_dict['val_cos_sim'] = val_cos_sim
+                stats_dict['val_obj_gap'] = val_obj_gap
+
+            pbar.set_postfix(stats_dict)
+            wandb.log(stats_dict)
         best_val_losses.append(trainer.best_val_loss)
         best_val_cos_sims.append(trainer.best_cos_sim)
         best_val_objgaps.append(trainer.best_objgap)

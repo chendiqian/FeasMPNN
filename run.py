@@ -92,11 +92,6 @@ if __name__ == '__main__':
                              shuffle=False,
                              collate_fn=collate_fn)
 
-    # trick, no need to collate
-    if args.val_batchsize >= len(dataset) * 0.1:
-        val_loader = [next(iter(val_loader)).to(device)]
-        test_loader = [next(iter(test_loader)).to(device)]
-
     best_val_losses = []
     best_val_cos_sims = []
     best_val_objgaps = []

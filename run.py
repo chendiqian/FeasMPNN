@@ -1,6 +1,5 @@
 import os
 import argparse
-from ml_collections import ConfigDict
 import yaml
 from functools import partial
 
@@ -14,7 +13,6 @@ import wandb
 
 from data.dataset import LPDataset
 from data.collate_func import collate_fn_lp_bi
-from utils.parsers import args_set_bool
 from data.prefetch_generator import BackgroundGenerator
 from models.hetero_gnn import BipartiteHeteroGNN
 from models.cycle_model import CycleGNN
@@ -27,11 +25,11 @@ def args_parser():
     parser.add_argument('--datapath', type=str, required=True)
     parser.add_argument('--wandbproject', type=str, default='default')
     parser.add_argument('--wandbname', type=str, default='')
-    parser.add_argument('--use_wandb', type=str, default='false')
+    parser.add_argument('--use_wandb', default=False, action='store_true')
 
     # training dynamics
     parser.add_argument('--losstype', type=str, default='l2', choices=['l1', 'l2'])
-    parser.add_argument('--ckpt', type=str, default='true')
+    parser.add_argument('--ckpt', default=False, action='store_true')
     parser.add_argument('--runs', type=int, default=1)
     parser.add_argument('--lr', type=float, default=1.e-3)
     parser.add_argument('--weight_decay', type=float, default=0.)
@@ -56,8 +54,6 @@ def args_parser():
 
 if __name__ == '__main__':
     args = args_parser()
-    args = args_set_bool(vars(args))
-    args = ConfigDict(args)
 
     if args.ckpt:
         if not os.path.isdir('logs'):
@@ -74,7 +70,7 @@ if __name__ == '__main__':
                config=vars(args),
                entity="chendiqian")  # use your own entity
 
-    dataset = LPDataset(args.datapath)
+    dataset = LPDataset(args.datapath)[:50]
     # remove unnecessary for training
     dataset._data.A_col = None
     dataset._data.A_row = None

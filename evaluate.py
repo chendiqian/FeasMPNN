@@ -7,7 +7,6 @@ import numpy as np
 import seaborn as sns
 import torch
 import wandb
-from ml_collections import ConfigDict
 from torch.utils.data import DataLoader
 from torch_sparse import SparseTensor
 from tqdm import tqdm
@@ -15,7 +14,6 @@ from tqdm import tqdm
 from data.dataset import LPDataset
 from utils.benchmark import sync_timer, gaussian_filter_bt
 from data.collate_func import collate_fn_lp_bi
-from utils.parsers import args_set_bool
 from models.cycle_model import CycleGNN
 from models.hetero_gnn import BipartiteHeteroGNN
 from solver.customized_solver import ipm_overleaf
@@ -29,7 +27,7 @@ def args_parser():
     parser.add_argument('--modelpath', type=str, required=True)
     parser.add_argument('--wandbproject', type=str, default='default')
     parser.add_argument('--wandbname', type=str, default='')
-    parser.add_argument('--use_wandb', type=str, default='false')
+    parser.add_argument('--use_wandb', default=False, action='store_true')
 
     # model related
     parser.add_argument('--ipm_eval_steps', type=int, default=32)
@@ -45,8 +43,6 @@ def args_parser():
 
 if __name__ == '__main__':
     args = args_parser()
-    args = args_set_bool(vars(args))
-    args = ConfigDict(args)
 
     wandb.init(project=args.wandbproject,
                name=args.wandbname if args.wandbname else None,

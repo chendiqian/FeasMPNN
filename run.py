@@ -36,6 +36,7 @@ def args_parser():
     parser.add_argument('--epoch', type=int, default=1000)
     parser.add_argument('--patience', type=int, default=100)
     parser.add_argument('--batchsize', type=int, default=32)
+    parser.add_argument('--val_batchsize', type=int, default=1024)
     parser.add_argument('--micro_batch', type=int, default=1)
 
     # model related
@@ -83,13 +84,18 @@ if __name__ == '__main__':
                               shuffle=True,
                               collate_fn=collate_fn)
     val_loader = DataLoader(dataset[int(len(dataset) * 0.8):int(len(dataset) * 0.9)],
-                            batch_size=args.batchsize * 2,
+                            batch_size=args.val_batchsize,
                             shuffle=False,
                             collate_fn=collate_fn)
     test_loader = DataLoader(dataset[int(len(dataset) * 0.9):],
-                             batch_size=args.batchsize * 2,
+                             batch_size=args.val_batchsize,
                              shuffle=False,
                              collate_fn=collate_fn)
+
+    # trick, no need to collate
+    if args.val_batchsize >= len(dataset) * 0.1:
+        val_loader = [next(iter(val_loader)).to(device)]
+        test_loader = [next(iter(test_loader)).to(device)]
 
     best_val_losses = []
     best_val_cos_sims = []

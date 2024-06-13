@@ -62,7 +62,7 @@ if __name__ == '__main__':
         log_folder_name = f'logs/exp{len(exist_runs)}'
         os.mkdir(log_folder_name)
         with open(os.path.join(log_folder_name, 'config.yaml'), 'w') as outfile:
-            yaml.dump(args.to_dict(), outfile, default_flow_style=False)
+            yaml.dump(vars(args), outfile, default_flow_style=False)
 
     wandb.init(project=args.wandbproject,
                name=args.wandbname if args.wandbname else None,
@@ -70,7 +70,7 @@ if __name__ == '__main__':
                config=vars(args),
                entity="chendiqian")  # use your own entity
 
-    dataset = LPDataset(args.datapath)[:50]
+    dataset = LPDataset(args.datapath)
     # remove unnecessary for training
     dataset._data.A_col = None
     dataset._data.A_row = None

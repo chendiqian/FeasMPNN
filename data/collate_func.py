@@ -40,6 +40,7 @@ def collate_fn_lp_bi(graphs: List[Data], perturb: bool = False, device: torch.de
                 nulls = g.nulls.reshape(nnodes[i], -1)
                 proj_matrix[i, :nnodes[i], :nulls.shape[1]] = nulls
         if not has_proj:
+            proj_matrix = proj_matrix.to(device, non_blocking=True)
             proj_matrix = torch.einsum('bmf,bnf->bmn', proj_matrix, proj_matrix)
 
     new_batch = Batch.from_data_list(graphs,

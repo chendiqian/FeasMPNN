@@ -85,6 +85,9 @@ if __name__ == '__main__':
             gnn_objgaps.append(obj_gaps)
             gnn_arange.append(np.arange(1, args.ipm_eval_steps + 1))
 
+    best_gnn_obj = [i[-1] for i in gnn_objgaps]
+    time_per_step_gnn = [i[-1] / args.ipm_eval_steps for i in gnn_timsteps]
+
     solver_objgaps = []
     solver_timsteps = []
     solver_steps = []
@@ -126,6 +129,9 @@ if __name__ == '__main__':
         sp_objgaps.append(np.abs((xs - opt_obj) / (opt_obj + 1.e-6)))
         sp_steps.append(res.nit)
         sp_arange.append(np.arange(1, xs.shape[0] + 1))
+
+    time_per_step_sp = [i[-1][-1] / i[-1].shape for i in sp_timsteps]
+    time_per_step_solver = [i[-1][-1] / i[-1].shape for i in solver_timsteps]
 
     gnn_timsteps = np.concatenate(gnn_timsteps, axis=0)
     gnn_objgaps = np.concatenate(gnn_objgaps, axis=0)
@@ -200,4 +206,12 @@ if __name__ == '__main__':
     plt.savefig('temp.png', dpi=300)
 
     if args.use_wandb:
-        wandb.log({"plot": wandb.Image(fig)})
+        wandb.log({"plot": wandb.Image(fig),
+                   "gnn_obj_mean": np.mean(best_gnn_obj),
+                   "gnn_obj_std": np.std(best_gnn_obj),
+                   "gnn_time_per_step_mean": np.mean(time_per_step_gnn),
+                   "gnn_time_per_step_std": np.std(time_per_step_gnn),
+                   "sp_timer_per_step_mean": np.mean(time_per_step_sp),
+                   "sp_timer_per_step_std": np.std(time_per_step_sp),
+                   "solver_timer_per_step_mean": np.mean(time_per_step_solver),
+                   "solver_timer_per_step_std": np.std(time_per_step_solver)})

@@ -30,7 +30,7 @@ def args_parser():
     parser.add_argument('--use_wandb', default=False, action='store_true')
 
     # model related
-    parser.add_argument('--ipm_eval_steps', type=int, default=32)
+    parser.add_argument('--ipm_eval_steps', type=int, default=64)
     parser.add_argument('--conv', type=str, default='gcnconv')
     parser.add_argument('--hidden', type=int, default=128)
     parser.add_argument('--num_conv_layers', type=int, default=6)

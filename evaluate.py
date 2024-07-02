@@ -152,7 +152,7 @@ if __name__ == '__main__':
     g_st_mean, (g_st_low, g_st_upp) = gaussian_filter_bt(
         np.linspace(0, gnn_arange.max(), gnn_arange.shape[0]),
         gnn_arange, gnn_objgaps_st,
-        1., n_boot=100)
+        1., n_boot=10)
     sns.lineplot(ax=axes[0], x=gnn_arange, y=g_st_mean, color='r', label='GNN')
 
     sort_idx = np.argsort(solver_arange)
@@ -161,7 +161,7 @@ if __name__ == '__main__':
     solver_st_mean, (solver_st_low, solver_st_upp) = gaussian_filter_bt(
         np.linspace(0, solver_arange.max(), solver_arange.shape[0]),
         solver_arange, solver_objgaps_st,
-        1., n_boot=100)
+        1., n_boot=10)
     sns.lineplot(ax=axes[0], x=solver_arange, y=solver_st_mean, color='b', label='solver')
 
     sort_idx = np.argsort(sp_arange)
@@ -170,7 +170,7 @@ if __name__ == '__main__':
     sp_st_mean, (sp_st_low, sp_st_upp) = gaussian_filter_bt(
         np.linspace(0, sp_arange.max(), sp_arange.shape[0]),
         sp_arange, sp_objgaps_st,
-        1., n_boot=100)
+        1., n_boot=10)
     sns.lineplot(ax=axes[0], x=sp_arange, y=sp_st_mean, color='g', label='scipy')
 
     sort_idx = np.argsort(gnn_timsteps)

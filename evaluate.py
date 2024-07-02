@@ -130,8 +130,8 @@ if __name__ == '__main__':
         sp_steps.append(res.nit)
         sp_arange.append(np.arange(1, xs.shape[0] + 1))
 
-    time_per_step_sp = [i[-1][-1] / i[-1].shape for i in sp_timsteps]
-    time_per_step_solver = [i[-1][-1] / i[-1].shape for i in solver_timsteps]
+    time_per_step_sp = [i[-1] / i.shape for i in sp_timsteps]
+    time_per_step_solver = [i[-1] / i.shape for i in solver_timsteps]
 
     gnn_timsteps = np.concatenate(gnn_timsteps, axis=0)
     gnn_objgaps = np.concatenate(gnn_objgaps, axis=0)

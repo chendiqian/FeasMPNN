@@ -28,6 +28,7 @@ def args_parser():
     parser.add_argument('--wandbproject', type=str, default='default')
     parser.add_argument('--wandbname', type=str, default='')
     parser.add_argument('--use_wandb', default=False, action='store_true')
+    parser.add_argument('--plot', default=False, action='store_true')
 
     # model related
     parser.add_argument('--ipm_eval_steps', type=int, default=64)
@@ -143,76 +144,80 @@ if __name__ == '__main__':
     sp_objgaps = np.concatenate(sp_objgaps, axis=0)
     sp_arange = np.concatenate(sp_arange, axis=0)
 
-    # subplots
-    fig, axes = plt.subplots(1, 2, figsize=(10,5), sharey=False)
+    stat_dict = {"gnn_obj_mean": np.mean(best_gnn_obj),
+                 "gnn_obj_std": np.std(best_gnn_obj),
+                 "gnn_time_per_step_mean": np.mean(time_per_step_gnn),
+                 "gnn_time_per_step_std": np.std(time_per_step_gnn),
+                 "sp_timer_per_step_mean": np.mean(time_per_step_sp),
+                 "sp_timer_per_step_std": np.std(time_per_step_sp),
+                 # "solver_timer_per_step_mean": np.mean(time_per_step_solver),
+                 # "solver_timer_per_step_std": np.std(time_per_step_solver),
+                 }
 
-    sort_idx = np.argsort(gnn_arange)
-    gnn_arange = gnn_arange[sort_idx]
-    gnn_objgaps_st = gnn_objgaps[sort_idx]
-    g_st_mean, (g_st_low, g_st_upp) = gaussian_filter_bt(
-        np.linspace(0, gnn_arange.max(), gnn_arange.shape[0]),
-        gnn_arange, gnn_objgaps_st,
-        1., n_boot=10)
-    sns.lineplot(ax=axes[0], x=gnn_arange, y=g_st_mean, color='r', label='GNN')
+    if args.plot:
+        # subplots
+        fig, axes = plt.subplots(1, 2, figsize=(10, 5), sharey=False)
 
-    # sort_idx = np.argsort(solver_arange)
-    # solver_arange = solver_arange[sort_idx]
-    # solver_objgaps_st = solver_objgaps[sort_idx]
-    # solver_st_mean, (solver_st_low, solver_st_upp) = gaussian_filter_bt(
-    #     np.linspace(0, solver_arange.max(), solver_arange.shape[0]),
-    #     solver_arange, solver_objgaps_st,
-    #     1., n_boot=10)
-    # sns.lineplot(ax=axes[0], x=solver_arange, y=solver_st_mean, color='b', label='solver')
+        sort_idx = np.argsort(gnn_arange)
+        gnn_arange = gnn_arange[sort_idx]
+        gnn_objgaps_st = gnn_objgaps[sort_idx]
+        g_st_mean, (g_st_low, g_st_upp) = gaussian_filter_bt(
+            np.linspace(0, gnn_arange.max(), gnn_arange.shape[0]),
+            gnn_arange, gnn_objgaps_st,
+            1., n_boot=10)
+        sns.lineplot(ax=axes[0], x=gnn_arange, y=g_st_mean, color='r', label='GNN')
 
-    sort_idx = np.argsort(sp_arange)
-    sp_arange = sp_arange[sort_idx]
-    sp_objgaps_st = sp_objgaps[sort_idx]
-    sp_st_mean, (sp_st_low, sp_st_upp) = gaussian_filter_bt(
-        np.linspace(0, sp_arange.max(), sp_arange.shape[0]),
-        sp_arange, sp_objgaps_st,
-        1., n_boot=10)
-    sns.lineplot(ax=axes[0], x=sp_arange, y=sp_st_mean, color='g', label='scipy')
+        # sort_idx = np.argsort(solver_arange)
+        # solver_arange = solver_arange[sort_idx]
+        # solver_objgaps_st = solver_objgaps[sort_idx]
+        # solver_st_mean, (solver_st_low, solver_st_upp) = gaussian_filter_bt(
+        #     np.linspace(0, solver_arange.max(), solver_arange.shape[0]),
+        #     solver_arange, solver_objgaps_st,
+        #     1., n_boot=10)
+        # sns.lineplot(ax=axes[0], x=solver_arange, y=solver_st_mean, color='b', label='solver')
 
-    sort_idx = np.argsort(gnn_timsteps)
-    gnn_timsteps = gnn_timsteps[sort_idx]
-    gnn_objgaps = gnn_objgaps[sort_idx]
-    gnn_mean, (gnn_low, gnn_upp) = gaussian_filter_bt(np.linspace(0, gnn_timsteps.max(), gnn_timsteps.shape[0]),
-                                                      gnn_timsteps, gnn_objgaps,
-                                                      gnn_timsteps.max() / args.ipm_eval_steps, n_boot=10)
+        sort_idx = np.argsort(sp_arange)
+        sp_arange = sp_arange[sort_idx]
+        sp_objgaps_st = sp_objgaps[sort_idx]
+        sp_st_mean, (sp_st_low, sp_st_upp) = gaussian_filter_bt(
+            np.linspace(0, sp_arange.max(), sp_arange.shape[0]),
+            sp_arange, sp_objgaps_st,
+            1., n_boot=10)
+        sns.lineplot(ax=axes[0], x=sp_arange, y=sp_st_mean, color='g', label='scipy')
 
-    # sort_idx = np.argsort(solver_timsteps)
-    # solver_timsteps = solver_timsteps[sort_idx]
-    # solver_objgaps = solver_objgaps[sort_idx]
-    # solver_mean, (solver_low, solver_upp) = gaussian_filter_bt(np.linspace(0, solver_timsteps.max(), solver_timsteps.shape[0]),
-    #                                                            solver_timsteps, solver_objgaps,
-    #                                                            solver_timsteps.max() / np.mean(solver_steps), n_boot=10)
+        sort_idx = np.argsort(gnn_timsteps)
+        gnn_timsteps = gnn_timsteps[sort_idx]
+        gnn_objgaps = gnn_objgaps[sort_idx]
+        gnn_mean, (gnn_low, gnn_upp) = gaussian_filter_bt(np.linspace(0, gnn_timsteps.max(), gnn_timsteps.shape[0]),
+                                                          gnn_timsteps, gnn_objgaps,
+                                                          gnn_timsteps.max() / args.ipm_eval_steps, n_boot=10)
 
-    sort_idx = np.argsort(sp_timsteps)
-    sp_timsteps = sp_timsteps[sort_idx]
-    sp_objgaps = sp_objgaps[sort_idx]
-    sp_mean, (sp_low, sp_upp) = gaussian_filter_bt(np.linspace(0, sp_timsteps.max(), sp_timsteps.shape[0]),
-                                                   sp_timsteps, sp_objgaps,
-                                                   sp_timsteps.max() / np.mean(sp_steps), n_boot=10)
+        # sort_idx = np.argsort(solver_timsteps)
+        # solver_timsteps = solver_timsteps[sort_idx]
+        # solver_objgaps = solver_objgaps[sort_idx]
+        # solver_mean, (solver_low, solver_upp) = gaussian_filter_bt(np.linspace(0, solver_timsteps.max(), solver_timsteps.shape[0]),
+        #                                                            solver_timsteps, solver_objgaps,
+        #                                                            solver_timsteps.max() / np.mean(solver_steps), n_boot=10)
 
-    sns.lineplot(ax=axes[1], x=gnn_timsteps, y=gnn_mean, label='GNN', color='r')
-    axes[1].fill_between(gnn_timsteps, gnn_low, gnn_upp, color='r', alpha=0.5)
-    # sns.lineplot(ax=axes[1], x=solver_timsteps, y=solver_mean, label='solver', color='b')
-    # axes[1].fill_between(solver_timsteps, solver_low, solver_upp, color='b', alpha=0.5)
-    sns.lineplot(ax=axes[1], x=sp_timsteps, y=sp_mean, label='scipy', color='g')
-    axes[1].fill_between(sp_timsteps, sp_low, sp_upp, color='g', alpha=0.5)
-    axes[0].set(yscale='log', ylim=[1.e-5, 1.], xlabel='Step', ylabel="Obj. rel error")
-    axes[1].set(xscale='log', yscale='log', ylim=[1.e-5, 1.], xlabel='Time (sec)', ylabel="Obj. rel error")
-    plt.legend()
-    plt.savefig('temp.png', dpi=300)
+        sort_idx = np.argsort(sp_timsteps)
+        sp_timsteps = sp_timsteps[sort_idx]
+        sp_objgaps = sp_objgaps[sort_idx]
+        sp_mean, (sp_low, sp_upp) = gaussian_filter_bt(np.linspace(0, sp_timsteps.max(), sp_timsteps.shape[0]),
+                                                       sp_timsteps, sp_objgaps,
+                                                       sp_timsteps.max() / np.mean(sp_steps), n_boot=10)
+
+        sns.lineplot(ax=axes[1], x=gnn_timsteps, y=gnn_mean, label='GNN', color='r')
+        axes[1].fill_between(gnn_timsteps, gnn_low, gnn_upp, color='r', alpha=0.5)
+        # sns.lineplot(ax=axes[1], x=solver_timsteps, y=solver_mean, label='solver', color='b')
+        # axes[1].fill_between(solver_timsteps, solver_low, solver_upp, color='b', alpha=0.5)
+        sns.lineplot(ax=axes[1], x=sp_timsteps, y=sp_mean, label='scipy', color='g')
+        axes[1].fill_between(sp_timsteps, sp_low, sp_upp, color='g', alpha=0.5)
+        axes[0].set(yscale='log', ylim=[1.e-5, 1.], xlabel='Step', ylabel="Obj. rel error")
+        axes[1].set(xscale='log', yscale='log', ylim=[1.e-5, 1.], xlabel='Time (sec)', ylabel="Obj. rel error")
+        plt.legend()
+        plt.savefig('temp.png', dpi=300)
+
+        stat_dict["plot"] = wandb.Image(fig)
 
     if args.use_wandb:
-        wandb.log({"plot": wandb.Image(fig),
-                   "gnn_obj_mean": np.mean(best_gnn_obj),
-                   "gnn_obj_std": np.std(best_gnn_obj),
-                   "gnn_time_per_step_mean": np.mean(time_per_step_gnn),
-                   "gnn_time_per_step_std": np.std(time_per_step_gnn),
-                   "sp_timer_per_step_mean": np.mean(time_per_step_sp),
-                   "sp_timer_per_step_std": np.std(time_per_step_sp),
-                   # "solver_timer_per_step_mean": np.mean(time_per_step_solver),
-                   # "solver_timer_per_step_std": np.std(time_per_step_solver),
-                   })
+        wandb.log(stat_dict)

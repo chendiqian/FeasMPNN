@@ -88,10 +88,10 @@ if __name__ == '__main__':
     best_gnn_obj = [i[-1] for i in gnn_objgaps]
     time_per_step_gnn = [i[-1] / args.ipm_eval_steps for i in gnn_timsteps]
 
-    solver_objgaps = []
-    solver_timsteps = []
-    solver_steps = []
-    solver_arange = []
+    # solver_objgaps = []
+    # solver_timsteps = []
+    # solver_steps = []
+    # solver_arange = []
     sp_objgaps = []
     sp_timsteps = []
     sp_steps = []
@@ -106,15 +106,15 @@ if __name__ == '__main__':
                          is_sorted=True, trust_data=True).to_dense().numpy()
         opt_obj = data.obj_solution.item()
 
-        start_t = sync_timer()
-        res = ipm_overleaf(c, A, b, init='dumb')
-        end_t = sync_timer()
-        xs = np.stack(res['intermediate'], axis=0).dot(c)
-        time_steps = np.arange(1, xs.shape[0] + 1) * (end_t - start_t) / xs.shape[0]
-        solver_timsteps.append(time_steps)
-        solver_objgaps.append(np.abs((xs - opt_obj) / (opt_obj + 1.e-6)))
-        solver_steps.append(res['nit'])
-        solver_arange.append(np.arange(1, xs.shape[0] + 1))
+        # start_t = sync_timer()
+        # res = ipm_overleaf(c, A, b, init='dumb')
+        # end_t = sync_timer()
+        # xs = np.stack(res['intermediate'], axis=0).dot(c)
+        # time_steps = np.arange(1, xs.shape[0] + 1) * (end_t - start_t) / xs.shape[0]
+        # solver_timsteps.append(time_steps)
+        # solver_objgaps.append(np.abs((xs - opt_obj) / (opt_obj + 1.e-6)))
+        # solver_steps.append(res['nit'])
+        # solver_arange.append(np.arange(1, xs.shape[0] + 1))
 
         start_t = sync_timer()
         res = linprog(
@@ -131,14 +131,14 @@ if __name__ == '__main__':
         sp_arange.append(np.arange(1, xs.shape[0] + 1))
 
     time_per_step_sp = [i[-1] / i.shape for i in sp_timsteps]
-    time_per_step_solver = [i[-1] / i.shape for i in solver_timsteps]
+    # time_per_step_solver = [i[-1] / i.shape for i in solver_timsteps]
 
     gnn_timsteps = np.concatenate(gnn_timsteps, axis=0)
     gnn_objgaps = np.concatenate(gnn_objgaps, axis=0)
     gnn_arange = np.concatenate(gnn_arange, axis=0)
-    solver_timsteps = np.concatenate(solver_timsteps, axis=0)
-    solver_objgaps = np.concatenate(solver_objgaps, axis=0)
-    solver_arange = np.concatenate(solver_arange, axis=0)
+    # solver_timsteps = np.concatenate(solver_timsteps, axis=0)
+    # solver_objgaps = np.concatenate(solver_objgaps, axis=0)
+    # solver_arange = np.concatenate(solver_arange, axis=0)
     sp_timsteps = np.concatenate(sp_timsteps, axis=0)
     sp_objgaps = np.concatenate(sp_objgaps, axis=0)
     sp_arange = np.concatenate(sp_arange, axis=0)
@@ -155,14 +155,14 @@ if __name__ == '__main__':
         1., n_boot=10)
     sns.lineplot(ax=axes[0], x=gnn_arange, y=g_st_mean, color='r', label='GNN')
 
-    sort_idx = np.argsort(solver_arange)
-    solver_arange = solver_arange[sort_idx]
-    solver_objgaps_st = solver_objgaps[sort_idx]
-    solver_st_mean, (solver_st_low, solver_st_upp) = gaussian_filter_bt(
-        np.linspace(0, solver_arange.max(), solver_arange.shape[0]),
-        solver_arange, solver_objgaps_st,
-        1., n_boot=10)
-    sns.lineplot(ax=axes[0], x=solver_arange, y=solver_st_mean, color='b', label='solver')
+    # sort_idx = np.argsort(solver_arange)
+    # solver_arange = solver_arange[sort_idx]
+    # solver_objgaps_st = solver_objgaps[sort_idx]
+    # solver_st_mean, (solver_st_low, solver_st_upp) = gaussian_filter_bt(
+    #     np.linspace(0, solver_arange.max(), solver_arange.shape[0]),
+    #     solver_arange, solver_objgaps_st,
+    #     1., n_boot=10)
+    # sns.lineplot(ax=axes[0], x=solver_arange, y=solver_st_mean, color='b', label='solver')
 
     sort_idx = np.argsort(sp_arange)
     sp_arange = sp_arange[sort_idx]
@@ -180,12 +180,12 @@ if __name__ == '__main__':
                                                       gnn_timsteps, gnn_objgaps,
                                                       gnn_timsteps.max() / args.ipm_eval_steps, n_boot=10)
 
-    sort_idx = np.argsort(solver_timsteps)
-    solver_timsteps = solver_timsteps[sort_idx]
-    solver_objgaps = solver_objgaps[sort_idx]
-    solver_mean, (solver_low, solver_upp) = gaussian_filter_bt(np.linspace(0, solver_timsteps.max(), solver_timsteps.shape[0]),
-                                                               solver_timsteps, solver_objgaps,
-                                                               solver_timsteps.max() / np.mean(solver_steps), n_boot=10)
+    # sort_idx = np.argsort(solver_timsteps)
+    # solver_timsteps = solver_timsteps[sort_idx]
+    # solver_objgaps = solver_objgaps[sort_idx]
+    # solver_mean, (solver_low, solver_upp) = gaussian_filter_bt(np.linspace(0, solver_timsteps.max(), solver_timsteps.shape[0]),
+    #                                                            solver_timsteps, solver_objgaps,
+    #                                                            solver_timsteps.max() / np.mean(solver_steps), n_boot=10)
 
     sort_idx = np.argsort(sp_timsteps)
     sp_timsteps = sp_timsteps[sort_idx]
@@ -196,8 +196,8 @@ if __name__ == '__main__':
 
     sns.lineplot(ax=axes[1], x=gnn_timsteps, y=gnn_mean, label='GNN', color='r')
     axes[1].fill_between(gnn_timsteps, gnn_low, gnn_upp, color='r', alpha=0.5)
-    sns.lineplot(ax=axes[1], x=solver_timsteps, y=solver_mean, label='solver', color='b')
-    axes[1].fill_between(solver_timsteps, solver_low, solver_upp, color='b', alpha=0.5)
+    # sns.lineplot(ax=axes[1], x=solver_timsteps, y=solver_mean, label='solver', color='b')
+    # axes[1].fill_between(solver_timsteps, solver_low, solver_upp, color='b', alpha=0.5)
     sns.lineplot(ax=axes[1], x=sp_timsteps, y=sp_mean, label='scipy', color='g')
     axes[1].fill_between(sp_timsteps, sp_low, sp_upp, color='g', alpha=0.5)
     axes[0].set(yscale='log', ylim=[1.e-5, 1.], xlabel='Step', ylabel="Obj. rel error")
@@ -213,5 +213,6 @@ if __name__ == '__main__':
                    "gnn_time_per_step_std": np.std(time_per_step_gnn),
                    "sp_timer_per_step_mean": np.mean(time_per_step_sp),
                    "sp_timer_per_step_std": np.std(time_per_step_sp),
-                   "solver_timer_per_step_mean": np.mean(time_per_step_solver),
-                   "solver_timer_per_step_std": np.std(time_per_step_solver)})
+                   # "solver_timer_per_step_mean": np.mean(time_per_step_solver),
+                   # "solver_timer_per_step_std": np.std(time_per_step_solver),
+                   })

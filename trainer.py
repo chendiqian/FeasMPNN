@@ -1,6 +1,7 @@
 import torch
 from torch_geometric.utils import to_dense_batch
 from torch_scatter import scatter
+from torch_sparse import spmm
 
 
 class Trainer:
@@ -101,3 +102,21 @@ class Trainer:
         cos = torch.vmap(self.cos_metric, in_dims=(2, 2, None), out_dims=1)(pred_batch, label_batch, target)
         cos = cos.mean()
         return cos
+
+    @torch.no_grad()
+    def eval_cons_violate(self, dataloader, model):
+        model.eval()
+
+        violations = 0.
+        num_graphs = 0
+        for i, data in enumerate(dataloader):
+            data = data.to(self.device)
+            pred, _ = model(data)
+            Ax_minus_b = spmm(data['cons', 'to', 'vals'].edge_index,
+                              data['cons', 'to', 'vals'].edge_attr.squeeze(),
+                              data['cons'].num_nodes, data['vals'].num_nodes, pred).squeeze() - data.b
+            violation = scatter(torch.abs(Ax_minus_b), data['cons'].batch, dim=0, reduce='mean').sum()
+            violations += violation
+            num_graphs += data.num_graphs
+
+        return violations.item() / num_graphs

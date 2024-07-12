@@ -95,6 +95,7 @@ if __name__ == '__main__':
     test_losses = []
     test_cos_sims = []
     test_objgaps = []
+    test_violations = []
 
     for run in range(args.runs):
         if args.ckpt:
@@ -154,10 +155,15 @@ if __name__ == '__main__':
 
         model.load_state_dict(best_model)
         test_loss, test_cos_sim, test_obj_gap = trainer.eval(test_loader, model)
+        test_violation = trainer.eval_cons_violate(BackgroundGenerator(train_loader, device, 4), model)
         test_losses.append(test_loss)
         test_cos_sims.append(test_cos_sim)
         test_objgaps.append(test_obj_gap)
-        wandb.log({'test_loss': test_loss, 'test_cos_sim': test_cos_sim, 'test_obj_gap': test_obj_gap})
+        test_violations.append(test_violation)
+        wandb.log({'test_loss': test_loss,
+                   'test_cos_sim': test_cos_sim,
+                   'test_obj_gap': test_obj_gap,
+                   'test_violation': test_violation})
 
     wandb.log({
         'best_val_loss': np.mean(best_val_losses),
@@ -169,4 +175,6 @@ if __name__ == '__main__':
         'test_cos_sim_std': np.std(test_cos_sims),
         'test_obj_gap_mean': np.mean(test_objgaps),
         'test_obj_gap_std': np.std(test_objgaps),
+        'test_violation_mean': np.mean(test_violations),
+        'test_violation_std': np.std(test_violations),
     })

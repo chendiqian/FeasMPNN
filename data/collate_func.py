@@ -77,3 +77,17 @@ def collate_fn_lp_bi(graphs: List[Data], perturb: bool = False, device: torch.de
         new_batch.x_start = new_batch.x_feasible
 
     return new_batch
+
+
+def collate_fn_lp_base(graphs: List[Data]):
+    g = graphs[0]
+    del g['obj'], g[('vals', 'to', 'obj')], g[('cons', 'to', 'obj')], g[('obj', 'to', 'cons')], g[('obj', 'to', 'vals')]
+    del g.proj_matrix, g.nulls, g.x_feasible
+
+    new_batch = Batch.from_data_list(graphs)
+    # finish the half of symmetric edges
+    flip_tensor = torch.tensor([1, 0])
+    new_batch[('vals', 'to', 'cons')].edge_index = new_batch[('cons', 'to', 'vals')].edge_index[flip_tensor]
+    new_batch[('vals', 'to', 'cons')].edge_attr = new_batch[('cons', 'to', 'vals')].edge_attr
+
+    return new_batch

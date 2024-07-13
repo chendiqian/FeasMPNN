@@ -36,7 +36,6 @@ def args_parser():
 
 
 if __name__ == '__main__':
-    raise ValueError("makes no sense right now, cause plain GNN does not encode starting position!")
     args = args_parser()
 
     wandb.init(project=args.wandbproject,
@@ -45,7 +44,7 @@ if __name__ == '__main__':
                config=vars(args),
                entity="chendiqian")  # use your own entity
 
-    dataset = LPDataset(args.datapath)[:10]
+    dataset = LPDataset(args.datapath)[-100:]
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     collate_fn = partial(collate_fn_lp_bi, device=device)

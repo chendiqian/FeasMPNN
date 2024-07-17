@@ -7,8 +7,7 @@ from torch_sparse import spmm
 class Trainer:
     def __init__(self,
                  device,
-                 loss_type,
-                 micro_batch):
+                 loss_type):
         self.best_val_loss = 1.e8
         self.best_cos_sim = 1.e8
         self.best_objgap = 1.e8
@@ -24,15 +23,10 @@ class Trainer:
             pass
         else:
             raise ValueError
-        self.micro_batch = micro_batch
 
     def train(self, dataloader, model, optimizer):
         model.train()
         optimizer.zero_grad()
-
-        update_count = 0
-        micro_batch = int(min(self.micro_batch, len(dataloader)))
-        loss_scaling_lst = [micro_batch] * (len(dataloader) // micro_batch) + [len(dataloader) % micro_batch]
 
         train_losses = 0.
         cos_sims = 0.
@@ -49,18 +43,12 @@ class Trainer:
 
             # use both L2 loss and Cos similarity loss
             loss = loss + cos_sim
-            update_count += 1
-            loss = loss / float(loss_scaling_lst[0])  # scale the loss
             loss.backward()
-
-            if update_count >= micro_batch or i == len(dataloader) - 1:
-                torch.nn.utils.clip_grad_norm_(model.parameters(),
-                                               max_norm=1.0,
-                                               error_if_nonfinite=True)
-                optimizer.step()
-                optimizer.zero_grad()
-                update_count = 0
-                loss_scaling_lst.pop(0)
+            torch.nn.utils.clip_grad_norm_(model.parameters(),
+                                           max_norm=1.0,
+                                           error_if_nonfinite=True)
+            optimizer.step()
+            optimizer.zero_grad()
 
         return train_losses.item() / num_graphs, cos_sims.item() / num_graphs
 

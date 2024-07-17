@@ -7,7 +7,8 @@ from torch_sparse import spmm
 class Trainer:
     def __init__(self,
                  device,
-                 loss_type):
+                 loss_type,
+                 loss_lambda):
         self.best_val_loss = 1.e8
         self.best_cos_sim = 1.e8
         self.best_objgap = 1.e8
@@ -23,6 +24,7 @@ class Trainer:
             pass
         else:
             raise ValueError
+        self.loss_lambda = loss_lambda
 
     def train(self, dataloader, model, optimizer):
         model.train()
@@ -42,7 +44,7 @@ class Trainer:
             num_graphs += data.num_graphs
 
             # use both L2 loss and Cos similarity loss
-            loss = loss + cos_sim
+            loss = loss + self.loss_lambda * cos_sim
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(),
                                            max_norm=1.0,

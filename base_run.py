@@ -36,6 +36,7 @@ def args_parser():
     parser.add_argument('--patience', type=int, default=100)
     parser.add_argument('--batchsize', type=int, default=32)
     parser.add_argument('--val_batchsize', type=int, default=1024)
+    parser.add_argument('--loss_lambda', type=float, default=1., help='balance between L2loss and cos loss')
 
     # model related
     parser.add_argument('--eval_every', type=int, default=1)
@@ -114,7 +115,7 @@ if __name__ == '__main__':
                                                          patience=50 // args.eval_every,
                                                          min_lr=1.e-5)
 
-        trainer = Trainer(device, args.losstype)
+        trainer = Trainer(device, args.losstype, args.loss_lambda)
 
         pbar = tqdm(range(args.epoch))
         for epoch in pbar:

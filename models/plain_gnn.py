@@ -26,6 +26,8 @@ class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
             x_dict = {k: F.relu(h2[k]) for k in keys}
 
         x = self.predictor(hiddens[-1])
+        if not self.training:
+            x = torch.relu(x)  # hard non negative
         return x, data.x_solution[:, None]
 
     @torch.no_grad()

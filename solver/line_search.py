@@ -15,6 +15,6 @@ def line_search(x: torch.Tensor, direction: torch.Tensor, alpha: float = 1.0):
 def batch_line_search(x: torch.Tensor, direction: torch.Tensor, batch: torch.Tensor, alpha: float = 1.0):
     neg_mask = direction < 0.
     alpha = torch.where(neg_mask, x / -direction, alpha)
-    alpha = scatter(alpha, batch, reduce='min')[0]
+    alpha = scatter(alpha, batch, reduce='min')
     alpha = alpha[batch]
     return alpha

@@ -1,13 +1,12 @@
 from typing import Optional
 
 import torch
-import torch.nn.functional as F
 from torch_geometric.nn import MLP
 
 from models.genconv import GENConv
 from models.gcnconv import GCNConv
 from models.ginconv import GINEConv
-from models.hetero_conv import HeteroConv
+from models.hetero_conv import BipartiteConv
 
 
 def get_conv_layer(conv: str,
@@ -55,25 +54,38 @@ class BipartiteHeteroGNN(torch.nn.Module):
 
         self.gcns = torch.nn.ModuleList()
         for layer in range(num_conv_layers):
-            self.gcns.append(
-                HeteroConv({
-                    ('cons', 'to', 'vals'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), 1),
-                    ('vals', 'to', 'cons'): (get_conv_layer(conv, hid_dim, num_mlp_layers, norm), 0),
-                }))
+            self.gcns.append(BipartiteConv(
+                get_conv_layer(conv, hid_dim, num_mlp_layers, norm),
+                get_conv_layer(conv, hid_dim, num_mlp_layers, norm)
+            ))
 
         self.predictor = MLP([-1] + [hid_dim] * (num_pred_layers - 1) + [1], norm=None)
 
-    def forward(self, batch_dict, edge_index_dict, edge_attr_dict, b, c, x_start):
+    def forward(self,
+                v2c_edge_index: torch.LongTensor,
+                c2v_edge_index: torch.LongTensor,
+                v2c_edge_attr: torch.FloatTensor,
+                c2v_edge_attr: torch.FloatTensor,
+                cons_batch: torch.LongTensor,
+                vals_batch: torch.LongTensor,
+                b: torch.FloatTensor,
+                c: torch.FloatTensor,
+                x_start: torch.FloatTensor):
 
-        x_dict = {'cons': self.b_encoder(b[:, None]),
-                  'vals': self.start_pos_encoder(x_start[:, None]) + self.obj_encoder(c[:, None])}
+        cons_embedding = self.b_encoder(b[:, None])
+        vals_embedding = self.start_pos_encoder(x_start[:, None]) + self.obj_encoder(c[:, None])
 
-        hiddens = []
         for i in range(self.num_layers):
-            h2 = self.gcns[i](x_dict, edge_index_dict, edge_attr_dict, batch_dict)
-            keys = h2.keys()
-            hiddens.append(h2['vals'])
-            x_dict = {k: F.relu(h2[k]) for k in keys}
+            vals_embedding, cons_embedding = self.gcns[i](cons_embedding,
+                                                          vals_embedding,
+                                                          v2c_edge_index,
+                                                          c2v_edge_index,
+                                                          v2c_edge_attr,
+                                                          c2v_edge_attr,
+                                                          cons_batch,
+                                                          vals_batch)
+            vals_embedding = torch.relu(vals_embedding)
+            cons_embedding = torch.relu(cons_embedding)
 
-        x = self.predictor(hiddens[-1])
+        x = self.predictor(vals_embedding)
         return x.squeeze()

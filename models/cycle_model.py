@@ -27,10 +27,23 @@ class CycleGNN(torch.nn.Module):
         pred_list = []
         label_list = []
 
-        batch = data['vals'].batch
+        vals_batch = data['vals'].batch
+        cons_batch = data['cons'].batch
+        c2v_edge_index = data['cons', 'to', 'vals'].edge_index
+        v2c_edge_index = data['vals', 'to', 'cons'].edge_index
+        c2v_edge_attr = data['cons', 'to', 'vals'].edge_attr
+        v2c_edge_attr = data['vals', 'to', 'cons'].edge_attr
+
         for i in range(self.num_steps):
             # prediction
-            pred = self.gnn(data.batch_dict, data.edge_index_dict, data.edge_attr_dict, data.b, data.c, data.x_start)
+            pred = self.gnn(
+                v2c_edge_index,
+                c2v_edge_index,
+                v2c_edge_attr,
+                c2v_edge_attr,
+                cons_batch,
+                vals_batch,
+                data.b, data.c, data.x_start)
             pred_list.append(pred)
 
             label = l1_normalize(data.x_solution - data.x_start)
@@ -44,11 +57,11 @@ class CycleGNN(torch.nn.Module):
             if data.proj_matrix.dim() == 2:  # only 1 graph
                 pred = torch.einsum('mn,n->m', data.proj_matrix, direction)
             else:
-                direction, nmask = to_dense_batch(direction, batch)
+                direction, nmask = to_dense_batch(direction, vals_batch)
                 pred = torch.einsum('bnm,bm->bn', data.proj_matrix, direction)[nmask]
 
             # line search
-            alpha = batch_line_search(data.x_start, pred, batch, self.step_alpha) * 0.995
+            alpha = batch_line_search(data.x_start, pred, vals_batch, self.step_alpha) * 0.995
             # update
             data.x_start = data.x_start + alpha * pred
 
@@ -67,12 +80,27 @@ class CycleGNN(torch.nn.Module):
         opt_obj = data.obj_solution
         current_best_obj = (current_best_batched_x * batched_c).sum(1)
 
-        batch = data['vals'].batch
+        vals_batch = data['vals'].batch
+        cons_batch = data['cons'].batch
+        c2v_edge_index = data['cons', 'to', 'vals'].edge_index
+        v2c_edge_index = data['vals', 'to', 'cons'].edge_index
+        c2v_edge_attr = data['cons', 'to', 'vals'].edge_attr
+        v2c_edge_attr = data['vals', 'to', 'cons'].edge_attr
+
         for i in range(self.num_eval_steps):
             # prediction
             if return_intern:
                 t_start = sync_timer()
-            pred = self.gnn(data.batch_dict, data.edge_index_dict, data.edge_attr_dict, data.b, data.c, data.x_start)
+
+            pred = self.gnn(
+                v2c_edge_index,
+                c2v_edge_index,
+                v2c_edge_attr,
+                c2v_edge_attr,
+                cons_batch,
+                vals_batch,
+                data.b, data.c, data.x_start)
+
             pred = l1_normalize(pred)
             direction = pred + tau / (data.x_start + tau)
             tau = max(tau / 2., 1.e-5)
@@ -81,16 +109,16 @@ class CycleGNN(torch.nn.Module):
             if data.proj_matrix.dim() == 2:  # only 1 graph
                 pred = torch.einsum('mn,n->m', data.proj_matrix, direction)
             else:
-                direction, nmask = to_dense_batch(direction, batch)
+                direction, nmask = to_dense_batch(direction, vals_batch)
                 pred = torch.einsum('bnm,bm->bn', data.proj_matrix, direction)[nmask]
 
             # line search
-            alpha = batch_line_search(data.x_start, pred, batch, self.step_alpha) * 0.995
+            alpha = batch_line_search(data.x_start, pred, vals_batch, self.step_alpha) * 0.995
             # update
             data.x_start = data.x_start + alpha * pred
             if return_intern:
                 t_end = sync_timer()
-            current_batched_x, _ = to_dense_batch(data.x_start, batch)  # batchsize x max_nnodes
+            current_batched_x, _ = to_dense_batch(data.x_start, vals_batch)  # batchsize x max_nnodes
             current_obj = (current_batched_x * batched_c).sum(1)
             better_mask = current_obj < current_best_obj
             current_best_obj = torch.where(better_mask, current_obj, current_best_obj)

@@ -3,14 +3,13 @@
 # Environment setup
 
 ```angular2html
-conda create -y -n ipmgnn python=3.10
+conda create -y -n ipmgnn python=3.12
 conda activate ipmgnn
-conda install pytorch==2.0.0  pytorch-cuda=11.8 -c pytorch -c nvidia
-conda install pyg -c pyg
-pip install https://data.pyg.org/whl/torch-2.0.0%2Bcu118/torch_scatter-2.1.1%2Bpt20cu118-cp310-cp310-linux_x86_64.whl
-pip install https://data.pyg.org/whl/torch-2.0.0%2Bcu118/torch_sparse-0.6.17%2Bpt20cu118-cp310-cp310-linux_x86_64.whl
-pip install wandb
-pip install seaborn matplotlib
+conda install pytorch==2.3.1 pytorch-cuda=11.8 -c pytorch -c nvidia
+pip install torch_geometric==2.5.3  # maybe latest also works
+pip install https://data.pyg.org/whl/torch-2.3.0%2Bcu118/torch_scatter-2.1.2%2Bpt23cu118-cp312-cp312-linux_x86_64.whl
+pip install https://data.pyg.org/whl/torch-2.3.0%2Bcu118/torch_sparse-0.6.18%2Bpt23cu118-cp312-cp312-linux_x86_64.whl
+pip install wandb seaborn matplotlib
 ```
 
 # Reproduction of the results

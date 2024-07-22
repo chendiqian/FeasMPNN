@@ -115,7 +115,7 @@ if __name__ == '__main__':
                                                          patience=50 // args.eval_every,
                                                          min_lr=1.e-5)
 
-        trainer = Trainer(device, args.losstype, args.loss_lambda)
+        trainer = Trainer(args.losstype, args.loss_lambda)
 
         pbar = tqdm(range(args.epoch))
         for epoch in pbar:

@@ -63,12 +63,10 @@ class BipartiteHeteroGNN(torch.nn.Module):
 
         self.predictor = MLP([-1] + [hid_dim] * (num_pred_layers - 1) + [1], norm=None)
 
-    def forward(self, data):
-        batch_dict = data.batch_dict
-        edge_index_dict, edge_attr_dict = data.edge_index_dict, data.edge_attr_dict
+    def forward(self, batch_dict, edge_index_dict, edge_attr_dict, b, c, x_start):
 
-        x_dict = {'cons': self.b_encoder(data.b[:, None]),
-                  'vals': self.start_pos_encoder(data.x_start[:, None]) + self.obj_encoder(data.c[:, None])}
+        x_dict = {'cons': self.b_encoder(b[:, None]),
+                  'vals': self.start_pos_encoder(x_start[:, None]) + self.obj_encoder(c[:, None])}
 
         hiddens = []
         for i in range(self.num_layers):

@@ -30,7 +30,7 @@ class CycleGNN(torch.nn.Module):
         batch = data['vals'].batch
         for i in range(self.num_steps):
             # prediction
-            pred = self.gnn(data)
+            pred = self.gnn(data.batch_dict, data.edge_index_dict, data.edge_attr_dict, data.b, data.c, data.x_start)
             pred_list.append(pred)
 
             label = l1_normalize(data.x_solution - data.x_start)
@@ -72,7 +72,7 @@ class CycleGNN(torch.nn.Module):
             # prediction
             if return_intern:
                 t_start = sync_timer()
-            pred = self.gnn(data)
+            pred = self.gnn(data.batch_dict, data.edge_index_dict, data.edge_attr_dict, data.b, data.c, data.x_start)
             pred = l1_normalize(pred)
             direction = pred + tau / (data.x_start + tau)
             tau = max(tau / 2., 1.e-5)

@@ -48,9 +48,9 @@ class BipartiteHeteroGNN(torch.nn.Module):
         super().__init__()
 
         self.num_layers = num_conv_layers
-        self.b_encoder = MLP([-1, hid_dim, hid_dim], norm=None)
-        self.start_pos_encoder = MLP([-1, hid_dim, hid_dim], norm=None)
-        self.obj_encoder = MLP([-1, hid_dim, hid_dim], norm=None)
+        self.b_encoder = MLP([1, hid_dim, hid_dim], norm=None)
+        self.start_pos_encoder = MLP([1, hid_dim, hid_dim], norm=None)
+        self.obj_encoder = MLP([1, hid_dim, hid_dim], norm=None)
 
         self.gcns = torch.nn.ModuleList()
         for layer in range(num_conv_layers):
@@ -59,7 +59,7 @@ class BipartiteHeteroGNN(torch.nn.Module):
                 get_conv_layer(conv, hid_dim, num_mlp_layers, norm)
             ))
 
-        self.predictor = MLP([-1] + [hid_dim] * (num_pred_layers - 1) + [1], norm=None)
+        self.predictor = MLP([hid_dim] * num_pred_layers + [1], norm=None)
 
     def forward(self,
                 v2c_edge_index: torch.LongTensor,

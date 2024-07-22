@@ -8,8 +8,8 @@ class GCNConv(MessagePassing):
     def __init__(self, edge_dim, hid_dim, num_mlp_layers, norm):
         super(GCNConv, self).__init__(aggr='add')
 
-        self.lin_src = Linear(-1, hid_dim)
-        self.lin_dst = Linear(-1, hid_dim)
+        self.lin_src = Linear(hid_dim, hid_dim)
+        self.lin_dst = Linear(hid_dim, hid_dim)
         self.lin_edge = Linear(edge_dim, hid_dim)
         self.mlp = MLP([hid_dim] * (num_mlp_layers + 1), norm=norm)
 

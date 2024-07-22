@@ -4,7 +4,6 @@ import torch
 from torch_geometric.nn.aggr import Aggregation, MultiAggregation
 from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.nn.dense.linear import Linear
-from torch_geometric.nn.inits import reset
 from torch_geometric.nn.norm import MessageNorm
 from torch_geometric.nn import MLP
 from torch_geometric.typing import (
@@ -89,20 +88,6 @@ class GENConv(MessagePassing):
         if msg_norm:
             self.msg_norm = MessageNorm(learn_msg_scale)
 
-    def reset_parameters(self):
-        super().reset_parameters()
-        reset(self.mlp)
-        if hasattr(self, 'msg_norm'):
-            self.msg_norm.reset_parameters()
-        if hasattr(self, 'lin_src'):
-            self.lin_src.reset_parameters()
-        if hasattr(self, 'lin_edge'):
-            reset(self.lin_edge)
-        if hasattr(self, 'lin_aggr_out'):
-            self.lin_aggr_out.reset_parameters()
-        if hasattr(self, 'lin_dst'):
-            self.lin_dst.reset_parameters()
-
     def forward(self, x: Union[torch.Tensor, OptPairTensor],
                 edge_index: Adj,
                 edge_attr: OptTensor = None,
@@ -149,7 +134,3 @@ class GENConv(MessagePassing):
     def message(self, x_j: torch.Tensor, edge_attr: OptTensor) -> torch.Tensor:
         msg = x_j if edge_attr is None else x_j + edge_attr
         return msg.relu() + self.eps
-
-    def __repr__(self) -> str:
-        return (f'{self.__class__.__name__}({self.in_channels}, '
-                f'{self.out_channels}, aggr={self.aggr})')

@@ -6,7 +6,8 @@ from torch_sparse import spmm
 if torch.cuda.is_available():
     device = 'cuda'
     # https://github.com/pytorch/pytorch/issues/111739#issuecomment-1774028643
-    scaler = torch.cuda.amp.GradScaler(init_scale=2.**15)
+    # scaler = torch.cuda.amp.GradScaler(init_scale=2.**15)
+    scaler = torch.cuda.amp.GradScaler()
     autocast = torch.cuda.amp.autocast
     enabled = True
 else:
@@ -59,10 +60,10 @@ class Trainer:
                 loss = loss + self.loss_lambda * cos_sim
 
             scaler.scale(loss).backward()
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(),
-                                           max_norm=1.0,
-                                           error_if_nonfinite=True)
+            # scaler.unscale_(optimizer)
+            # torch.nn.utils.clip_grad_norm_(model.parameters(),
+            #                                max_norm=1.0,
+            #                                error_if_nonfinite=True)
             scaler.step(optimizer)
             scaler.update()
 

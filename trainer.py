@@ -1,6 +1,5 @@
 import torch
-from torch_geometric.utils import to_dense_batch
-from torch_scatter import scatter
+from torch_geometric.utils import to_dense_batch, scatter
 from torch_sparse import spmm
 
 

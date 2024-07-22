@@ -7,10 +7,12 @@ if torch.cuda.is_available():
     device = 'cuda'
     scaler = torch.cuda.amp.GradScaler()
     autocast = torch.cuda.amp.autocast
+    enabled = True
 else:
-    scalar = torch.cpu.amp.GradScaler()
+    scaler = torch.cpu.amp.GradScaler(enabled=False)
     autocast = torch.cpu.amp.autocast
     device = 'cpu'
+    enabled = False
 
 
 class Trainer:
@@ -43,7 +45,7 @@ class Trainer:
             data = data.to(device)
             optimizer.zero_grad()
 
-            with autocast(dtype=torch.float16):
+            with autocast(enabled=enabled, dtype=torch.float16):
                 pred, label = model(data)  # nnodes x steps
                 loss = self.get_loss(pred, label, data['vals'].batch)
                 cos_sim = self.get_cos_sim(pred, label, data['vals'].batch)
@@ -56,10 +58,10 @@ class Trainer:
                 loss = loss + self.loss_lambda * cos_sim
 
             scaler.scale(loss).backward()
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(),
-                                           max_norm=1.0,
-                                           error_if_nonfinite=True)
+            # scaler.unscale_(optimizer)
+            # torch.nn.utils.clip_grad_norm_(model.parameters(),
+            #                                max_norm=1.0,
+            #                                error_if_nonfinite=True)
             scaler.step(optimizer)
             scaler.update()
 
@@ -75,7 +77,7 @@ class Trainer:
         obj_gaps = []
         for i, data in enumerate(dataloader):
             data = data.to(device)
-            with autocast(dtype=torch.float16):
+            with autocast(enabled=enabled, dtype=torch.float16):
                 pred, label = model(data)
                 loss = self.get_loss(pred, label, data['vals'].batch)
                 cos_sim = self.get_cos_sim(pred, label, data['vals'].batch)

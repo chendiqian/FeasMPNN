@@ -96,7 +96,6 @@ class BipartiteHeteroGNN(torch.nn.Module):
                                                           cons_batch,
                                                           vals_batch,)
 
-            # todo: merge these into MLP
             vals_embedding = torch.relu(vals_embedding)
             cons_embedding = torch.relu(cons_embedding)
 

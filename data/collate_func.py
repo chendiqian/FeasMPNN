@@ -84,7 +84,7 @@ def collate_fn_lp_base(graphs: List[Data]):
     del g['obj'], g[('vals', 'to', 'obj')], g[('cons', 'to', 'obj')], g[('obj', 'to', 'cons')], g[('obj', 'to', 'vals')]
     del g.proj_matrix, g.nulls, g.x_feasible
 
-    new_batch = Batch.from_data_list(graphs)
+    new_batch = Batch.from_data_list(graphs, exclude_keys=['x'])  # we drop the dumb x features
     # finish the half of symmetric edges
     flip_tensor = torch.tensor([1, 0])
     new_batch[('vals', 'to', 'cons')].edge_index = new_batch[('cons', 'to', 'vals')].edge_index[flip_tensor]

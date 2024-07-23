@@ -13,6 +13,7 @@ import wandb
 
 from data.dataset import LPDataset
 from data.collate_func import collate_fn_lp_bi
+from data.transforms import GCNNorm
 from data.prefetch_generator import BackgroundGenerator
 from models.hetero_gnn import BipartiteHeteroGNN
 from models.cycle_model import CycleGNN
@@ -71,7 +72,7 @@ if __name__ == '__main__':
                config=vars(args),
                entity="chendiqian")  # use your own entity
 
-    dataset = LPDataset(args.datapath)
+    dataset = LPDataset(args.datapath, transform=GCNNorm() if args.conv.startswith('gcn') else None)
     # remove unnecessary for training
     dataset._data.A_col = None
     dataset._data.A_row = None

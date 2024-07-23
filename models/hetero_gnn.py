@@ -6,6 +6,7 @@ from torch_geometric.nn import MLP
 from models.genconv import GENConv
 from models.gcnconv import GCNConv
 from models.ginconv import GINEConv
+from models.gcn2conv import GCN2Conv
 from models.hetero_conv import BipartiteConv
 
 
@@ -30,6 +31,11 @@ def get_conv_layer(conv: str,
                        norm=norm)
     elif conv.lower() == 'ginconv':
         return GINEConv(edge_dim=1,
+                        hid_dim=hid_dim,
+                        num_mlp_layers=num_mlp_layers,
+                        norm=norm)
+    elif conv.lower() == 'gcn2conv':
+        return GCN2Conv(edge_dim=1,
                         hid_dim=hid_dim,
                         num_mlp_layers=num_mlp_layers,
                         norm=norm)
@@ -72,18 +78,25 @@ class BipartiteHeteroGNN(torch.nn.Module):
                 c: torch.FloatTensor,
                 x_start: torch.FloatTensor):
 
+        # todo: dont need to normalize everytime
         cons_embedding = self.b_encoder(b[:, None])
         vals_embedding = self.start_pos_encoder(x_start[:, None]) + self.obj_encoder(c[:, None])
 
+        cons_embedding_0 = cons_embedding
+        vals_embedding_0 = vals_embedding
         for i in range(self.num_layers):
             vals_embedding, cons_embedding = self.gcns[i](cons_embedding,
                                                           vals_embedding,
+                                                          cons_embedding_0,
+                                                          vals_embedding_0,
                                                           v2c_edge_index,
                                                           c2v_edge_index,
                                                           v2c_edge_attr,
                                                           c2v_edge_attr,
                                                           cons_batch,
-                                                          vals_batch)
+                                                          vals_batch,)
+
+            # todo: merge these into MLP
             vals_embedding = torch.relu(vals_embedding)
             cons_embedding = torch.relu(cons_embedding)
 

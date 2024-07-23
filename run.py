@@ -35,10 +35,11 @@ def args_parser():
     parser.add_argument('--lr', type=float, default=1.e-3)
     parser.add_argument('--weight_decay', type=float, default=0.)
     parser.add_argument('--epoch', type=int, default=1000)
-    parser.add_argument('--patience', type=int, default=100)
+    parser.add_argument('--patience', type=int, default=300)
     parser.add_argument('--batchsize', type=int, default=32)
     parser.add_argument('--val_batchsize', type=int, default=1024)
-    parser.add_argument('--loss_lambda', type=float, default=1., help='balance between L2loss and cos loss')
+    parser.add_argument('--coeff_l2', type=float, default=0.1, help='balance between L2loss and cos loss')
+    parser.add_argument('--coeff_cos', type=float, default=1., help='balance between L2loss and cos loss')
 
     # model related
     parser.add_argument('--ipm_train_steps', type=int, default=8)
@@ -116,10 +117,10 @@ if __name__ == '__main__':
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                          mode='min',
                                                          factor=0.5,
-                                                         patience=50 // args.eval_every,
+                                                         patience=70 // args.eval_every,
                                                          min_lr=1.e-5)
 
-        trainer = Trainer(args.losstype, args.loss_lambda)
+        trainer = Trainer(args.losstype, args.coeff_l2, args.coeff_cos)
 
         pbar = tqdm(range(args.epoch))
         for epoch in pbar:

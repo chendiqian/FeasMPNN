@@ -11,21 +11,27 @@ from solver.line_search import batch_line_search
 
 class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
     def forward(self, data):
-        batch_dict = data.batch_dict
-        edge_index_dict, edge_attr_dict = data.edge_index_dict, data.edge_attr_dict
-
         # the only difference is, not to encode x start position
-        x_dict = {'cons': self.b_encoder(data.b[:, None]),
-                  'vals': self.obj_encoder(data.c[:, None])}
+        cons_embedding = self.b_encoder(data.b[:, None])
+        vals_embedding = self.obj_encoder(data.c[:, None])
 
-        hiddens = []
+        edge_norms = data.norm if hasattr(data, 'norm') else None
+        cons_embedding_0 = cons_embedding
+        vals_embedding_0 = vals_embedding
         for i in range(self.num_layers):
-            h2 = self.gcns[i](x_dict, edge_index_dict, edge_attr_dict, batch_dict)
-            keys = h2.keys()
-            hiddens.append(h2['vals'])
-            x_dict = {k: F.relu(h2[k]) for k in keys}
+            vals_embedding, cons_embedding = self.gcns[i](cons_embedding,
+                                                          vals_embedding,
+                                                          cons_embedding_0,
+                                                          vals_embedding_0,
+                                                          data['vals', 'to', 'cons'].edge_index,
+                                                          data['cons', 'to', 'vals'].edge_index,
+                                                          data['vals', 'to', 'cons'].edge_attr,
+                                                          data['cons', 'to', 'vals'].edge_attr,
+                                                          data['cons'].batch,
+                                                          data['vals'].batch,
+                                                          edge_norms)
 
-        x = self.predictor(hiddens[-1])
+        x = self.predictor(vals_embedding)
         if not self.training:
             x = torch.relu(x)  # hard non negative
         return x, data.x_solution[:, None]

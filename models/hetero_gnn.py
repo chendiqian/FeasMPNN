@@ -67,20 +67,18 @@ class BipartiteHeteroGNN(torch.nn.Module):
 
         self.predictor = MLP([hid_dim] * num_pred_layers + [1], norm=None)
 
-    def forward(self,
-                v2c_edge_index: torch.LongTensor,
-                c2v_edge_index: torch.LongTensor,
-                v2c_edge_attr: torch.FloatTensor,
-                c2v_edge_attr: torch.FloatTensor,
-                cons_batch: torch.LongTensor,
-                vals_batch: torch.LongTensor,
-                b: torch.FloatTensor,
-                c: torch.FloatTensor,
-                x_start: torch.FloatTensor):
+    def forward(self, data):
+        vals_batch: torch.LongTensor = data['vals'].batch
+        cons_batch: torch.LongTensor = data['cons'].batch
+        c2v_edge_index: torch.LongTensor = data['cons', 'to', 'vals'].edge_index
+        v2c_edge_index: torch.LongTensor = data['vals', 'to', 'cons'].edge_index
+        c2v_edge_attr: torch.FloatTensor = data['cons', 'to', 'vals'].edge_attr
+        v2c_edge_attr: torch.FloatTensor = data['vals', 'to', 'cons'].edge_attr
 
-        # todo: dont need to normalize everytime
-        cons_embedding = self.b_encoder(b[:, None])
-        vals_embedding = self.start_pos_encoder(x_start[:, None]) + self.obj_encoder(c[:, None])
+        cons_embedding = self.b_encoder(data.b[:, None])
+        vals_embedding = self.start_pos_encoder(data.x_start[:, None]) + self.obj_encoder(data.c[:, None])
+
+        edge_norms = data.norm if hasattr(data, 'norm') and isinstance(data.norm, torch.FloatTensor) else None
 
         cons_embedding_0 = cons_embedding
         vals_embedding_0 = vals_embedding
@@ -94,7 +92,8 @@ class BipartiteHeteroGNN(torch.nn.Module):
                                                           v2c_edge_attr,
                                                           c2v_edge_attr,
                                                           cons_batch,
-                                                          vals_batch,)
+                                                          vals_batch,
+                                                          edge_norms)
 
             vals_embedding = torch.relu(vals_embedding)
             cons_embedding = torch.relu(cons_embedding)

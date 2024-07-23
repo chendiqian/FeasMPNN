@@ -13,6 +13,7 @@ import wandb
 
 from data.dataset import LPDataset
 from data.collate_func import collate_fn_lp_base
+from data.transforms import GCNNorm
 from data.prefetch_generator import BackgroundGenerator
 from models.plain_gnn import BaseBipartiteHeteroGNN
 from trainer import Trainer
@@ -68,7 +69,7 @@ if __name__ == '__main__':
                config=vars(args),
                entity="chendiqian")  # use your own entity
 
-    dataset = LPDataset(args.datapath)
+    dataset = LPDataset(args.datapath, transform=GCNNorm() if args.conv.startswith('gcn') else None)
     # remove unnecessary for training
     dataset._data.A_col = None
     dataset._data.A_row = None
@@ -116,6 +117,8 @@ if __name__ == '__main__':
                                                          min_lr=1.e-5)
 
         trainer = Trainer(args.losstype, args.loss_lambda)
+
+        test_violation = trainer.eval_cons_violate(BackgroundGenerator(train_loader, device, 4), model)
 
         pbar = tqdm(range(args.epoch))
         for epoch in pbar:

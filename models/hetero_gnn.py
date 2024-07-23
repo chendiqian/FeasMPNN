@@ -78,7 +78,7 @@ class BipartiteHeteroGNN(torch.nn.Module):
         cons_embedding = self.b_encoder(data.b[:, None])
         vals_embedding = self.start_pos_encoder(data.x_start[:, None]) + self.obj_encoder(data.c[:, None])
 
-        edge_norms = data.norm if hasattr(data, 'norm') and isinstance(data.norm, torch.FloatTensor) else None
+        edge_norms = data.norm if hasattr(data, 'norm') else None
 
         cons_embedding_0 = cons_embedding
         vals_embedding_0 = vals_embedding

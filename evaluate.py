@@ -11,9 +11,11 @@ from torch.utils.data import DataLoader
 from torch_sparse import SparseTensor
 from tqdm import tqdm
 
+from trainer import Trainer
 from data.dataset import LPDataset
 from utils.benchmark import sync_timer, gaussian_filter_bt
 from data.collate_func import collate_fn_lp_bi
+from data.transforms import GCNNorm
 from models.cycle_model import CycleGNN
 from models.hetero_gnn import BipartiteHeteroGNN
 from solver.customized_solver import ipm_overleaf
@@ -51,7 +53,7 @@ if __name__ == '__main__':
                config=vars(args),
                entity="chendiqian")  # use your own entity
 
-    dataset = LPDataset(args.datapath)
+    dataset = LPDataset(args.datapath, transform=GCNNorm() if args.conv.startswith('gcn') else None)
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     collate_fn = partial(collate_fn_lp_bi, device=device)
@@ -63,6 +65,7 @@ if __name__ == '__main__':
     gnn_objgaps = []
     gnn_timsteps = []
     gnn_arange = []
+    gnn_violations = []
 
     # warmup and set dimensions
     gnn = BipartiteHeteroGNN(conv=args.conv,
@@ -76,15 +79,16 @@ if __name__ == '__main__':
     _ = gnn(data)
 
     for ckpt in [n for n in os.listdir(args.modelpath) if n.endswith('.pt')]:
-        model.load_state_dict(torch.load(os.path.join(args.modelpath, ckpt), map_location=device))
+        # model.load_state_dict(torch.load(os.path.join(args.modelpath, ckpt), map_location=device))
         model.eval()
 
         for data in tqdm(dataloader):
             data = data.to(device)
-            _, obj_gaps, time_stamps = model.evaluation(data, True)
+            final_x, _, obj_gaps, time_stamps = model.evaluation(data, True)
             gnn_timsteps.append(time_stamps)
             gnn_objgaps.append(obj_gaps)
             gnn_arange.append(np.arange(1, args.ipm_eval_steps + 1))
+            gnn_violations.append(Trainer.violate_per_batch(final_x.t(), data)[0].item())
 
     best_gnn_obj = [i[-1] for i in gnn_objgaps]
     time_per_step_gnn = [i[-1] / args.ipm_eval_steps for i in gnn_timsteps]
@@ -146,6 +150,8 @@ if __name__ == '__main__':
 
     stat_dict = {"gnn_obj_mean": np.mean(best_gnn_obj),
                  "gnn_obj_std": np.std(best_gnn_obj),
+                 "gnn_violation_mean": np.mean(gnn_violations),
+                 "gnn_violation_std": np.std(gnn_violations),
                  "gnn_time_per_step_mean": np.mean(time_per_step_gnn),
                  "gnn_time_per_step_std": np.std(time_per_step_gnn),
                  "sp_timer_per_step_mean": np.mean(time_per_step_sp),

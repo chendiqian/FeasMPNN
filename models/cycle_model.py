@@ -28,22 +28,9 @@ class CycleGNN(torch.nn.Module):
         label_list = []
 
         vals_batch = data['vals'].batch
-        cons_batch = data['cons'].batch
-        c2v_edge_index = data['cons', 'to', 'vals'].edge_index
-        v2c_edge_index = data['vals', 'to', 'cons'].edge_index
-        c2v_edge_attr = data['cons', 'to', 'vals'].edge_attr
-        v2c_edge_attr = data['vals', 'to', 'cons'].edge_attr
-
         for i in range(self.num_steps):
             # prediction
-            pred = self.gnn(
-                v2c_edge_index,
-                c2v_edge_index,
-                v2c_edge_attr,
-                c2v_edge_attr,
-                cons_batch,
-                vals_batch,
-                data.b, data.c, data.x_start)
+            pred = self.gnn(data)
             pred_list.append(pred)
 
             label = l1_normalize(data.x_solution - data.x_start)
@@ -81,26 +68,12 @@ class CycleGNN(torch.nn.Module):
         current_best_obj = (current_best_batched_x * batched_c).sum(1)
 
         vals_batch = data['vals'].batch
-        cons_batch = data['cons'].batch
-        c2v_edge_index = data['cons', 'to', 'vals'].edge_index
-        v2c_edge_index = data['vals', 'to', 'cons'].edge_index
-        c2v_edge_attr = data['cons', 'to', 'vals'].edge_attr
-        v2c_edge_attr = data['vals', 'to', 'cons'].edge_attr
-
         for i in range(self.num_eval_steps):
             # prediction
             if return_intern:
                 t_start = sync_timer()
 
-            pred = self.gnn(
-                v2c_edge_index,
-                c2v_edge_index,
-                v2c_edge_attr,
-                c2v_edge_attr,
-                cons_batch,
-                vals_batch,
-                data.b, data.c, data.x_start)
-
+            pred = self.gnn(data)
             pred = l1_normalize(pred)
             direction = pred + tau / (data.x_start + tau)
             tau = max(tau / 2., 1.e-5)

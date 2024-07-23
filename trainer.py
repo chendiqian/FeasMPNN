@@ -2,6 +2,9 @@ import torch
 from torch_geometric.utils import to_dense_batch, scatter
 from torch_sparse import spmm
 
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+cos_metric = torch.nn.CosineEmbeddingLoss(reduction='none')
+
 
 class Trainer:
     def __init__(self,
@@ -12,8 +15,6 @@ class Trainer:
         self.best_objgap = 1.e8
         self.patience = 0
         self.loss_type = loss_type
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.cos_metric = torch.nn.CosineEmbeddingLoss(reduction='none')
         if loss_type == 'l2':
             self.loss_func = lambda x: x ** 2
         elif loss_type == 'l1':
@@ -32,7 +33,7 @@ class Trainer:
         cos_sims = 0.
         num_graphs = 0
         for i, data in enumerate(dataloader):
-            data = data.to(self.device)
+            data = data.to(device)
             optimizer.zero_grad()
 
             pred, label = model(data)  # nnodes x steps
@@ -60,7 +61,7 @@ class Trainer:
         num_graphs = 0
         obj_gaps = []
         for i, data in enumerate(dataloader):
-            data = data.to(self.device)
+            data = data.to(device)
             pred, label = model(data)
             loss = self.get_loss(pred, label, data['vals'].batch)
             cos_sim = self.get_cos_sim(pred, label, data['vals'].batch)
@@ -69,7 +70,7 @@ class Trainer:
             cos_sims += cos_sim * data.num_graphs
             num_graphs += data.num_graphs
 
-            obj_gap, *_ = model.evaluation(data)
+            _, obj_gap, _, _ = model.evaluation(data)
             obj_gaps.append(obj_gap)
 
         objs = torch.cat(obj_gaps, dim=0).mean().item()
@@ -81,12 +82,13 @@ class Trainer:
         loss = scatter(loss, batch, dim=0, reduce='mean').mean()
         return loss
 
-    def get_cos_sim(self, pred, label, batch):
+    @classmethod
+    def get_cos_sim(cls, pred, label, batch):
         # cosine similarity, only on the last layer
         pred_batch, _ = to_dense_batch(pred, batch)  # batchsize x max_nnodes x steps
         label_batch, _ = to_dense_batch(label, batch)  # batchsize x max_nnodes x steps
         target = pred_batch.new_ones(pred_batch.shape[0])
-        cos = torch.vmap(self.cos_metric, in_dims=(2, 2, None), out_dims=1)(pred_batch, label_batch, target)
+        cos = torch.vmap(cos_metric, in_dims=(2, 2, None), out_dims=1)(pred_batch, label_batch, target)
         cos = cos.mean()
         return cos
 
@@ -97,13 +99,18 @@ class Trainer:
         violations = 0.
         num_graphs = 0
         for i, data in enumerate(dataloader):
-            data = data.to(self.device)
+            data = data.to(device)
             pred, _ = model(data)
-            Ax_minus_b = spmm(data['cons', 'to', 'vals'].edge_index,
-                              data['cons', 'to', 'vals'].edge_attr.squeeze(),
-                              data['cons'].num_nodes, data['vals'].num_nodes, pred).squeeze() - data.b
-            violation = scatter(torch.abs(Ax_minus_b), data['cons'].batch, dim=0, reduce='mean').sum()
+            violation = self.violate_per_batch(pred, data).sum()
             violations += violation
             num_graphs += data.num_graphs
 
         return violations.item() / num_graphs
+
+    @classmethod
+    def violate_per_batch(cls, pred, data) -> torch.Tensor:
+        Ax_minus_b = spmm(data['cons', 'to', 'vals'].edge_index,
+                          data['cons', 'to', 'vals'].edge_attr.squeeze(),
+                          data['cons'].num_nodes, data['vals'].num_nodes, pred).squeeze() - data.b
+        violation = scatter(torch.abs(Ax_minus_b), data['cons'].batch, dim=0, reduce='mean')  # (batchsize,)
+        return violation

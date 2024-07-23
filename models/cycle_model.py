@@ -104,4 +104,4 @@ class CycleGNN(torch.nn.Module):
             obj_gaps = torch.abs((opt_obj - torch.cat(obj_gaps, dim=0)) / opt_obj).cpu().numpy()
             time_steps = np.cumsum(time_steps, axis=0)
 
-        return torch.abs((opt_obj - current_best_obj) / opt_obj), obj_gaps, time_steps
+        return current_best_batched_x, torch.abs((opt_obj - current_best_obj) / opt_obj), obj_gaps, time_steps

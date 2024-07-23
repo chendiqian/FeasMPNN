@@ -95,8 +95,5 @@ class BipartiteHeteroGNN(torch.nn.Module):
                                                           vals_batch,
                                                           edge_norms)
 
-            vals_embedding = torch.relu(vals_embedding)
-            cons_embedding = torch.relu(cons_embedding)
-
         x = self.predictor(vals_embedding)
         return x.squeeze()

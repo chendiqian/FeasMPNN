@@ -10,7 +10,7 @@ class GINEConv(MessagePassing):
         self.lin_src = Linear(hid_dim, hid_dim)
         self.lin_dst = Linear(hid_dim, hid_dim)
         self.lin_edge = Linear(edge_dim, hid_dim)
-        self.mlp = MLP([hid_dim] * (num_mlp_layers + 1), norm=norm)
+        self.mlp = MLP([hid_dim] * (num_mlp_layers + 1), norm=norm, plain_last=False)
         self.eps = torch.nn.Parameter(torch.Tensor([1.]))
 
     def forward(self, x, edge_index, edge_attr, batch):

@@ -83,7 +83,7 @@ class GENConv(MessagePassing):
         for i in range(num_layers - 1):
             channels.append(out_channels * expansion)
         channels.append(out_channels)
-        self.mlp = MLP(channels, norm=norm, bias=bias)
+        self.mlp = MLP(channels, norm=norm, bias=bias, plain_last=False)
 
         if msg_norm:
             self.msg_norm = MessageNorm(learn_msg_scale)

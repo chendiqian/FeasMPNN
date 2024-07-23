@@ -10,7 +10,7 @@ class GCNConv(MessagePassing):
         self.lin_src = Linear(hid_dim, hid_dim)
         self.lin_dst = Linear(hid_dim, hid_dim)
         self.lin_edge = Linear(edge_dim, hid_dim)
-        self.mlp = MLP([hid_dim] * (num_mlp_layers + 1), norm=norm)
+        self.mlp = MLP([hid_dim] * (num_mlp_layers + 1), norm=norm, plain_last=False)
 
     def forward(self, x, edge_index, edge_attr, batch, norm):
         x = (self.lin_src(x[0]), x[1])

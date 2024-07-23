@@ -79,7 +79,7 @@ if __name__ == '__main__':
     _ = gnn(data)
 
     for ckpt in [n for n in os.listdir(args.modelpath) if n.endswith('.pt')]:
-        # model.load_state_dict(torch.load(os.path.join(args.modelpath, ckpt), map_location=device))
+        model.load_state_dict(torch.load(os.path.join(args.modelpath, ckpt), map_location=device))
         model.eval()
 
         for data in tqdm(dataloader):

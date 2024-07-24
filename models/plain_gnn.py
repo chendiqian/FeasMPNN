@@ -1,11 +1,10 @@
 import torch
 import numpy as np
-from torch.nn import functional as F
 from torch_geometric.utils import to_dense_batch
 
 from models.hetero_gnn import BipartiteHeteroGNN
 from utils.benchmark import sync_timer
-from utils.data import l1_normalize
+from utils.data import batch_l1_normalize
 from solver.line_search import batch_line_search
 
 
@@ -68,7 +67,7 @@ class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
             t_start = sync_timer()
             pred_x = self.forward(data)[0].squeeze()
             direction = pred_x - data.x_start
-            direction = l1_normalize(direction)
+            direction = batch_l1_normalize(direction, batch)
             direction = direction + tau / (data.x_start + tau)
             tau = max(tau / 2., 1.e-5)
 

@@ -45,7 +45,7 @@ class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
         pred_x = self.forward(data)[0].squeeze(1)
         pred_x, _ = to_dense_batch(pred_x, data['vals'].batch)  # batchsize x max_nnodes
         batch_obj = (pred_x * batched_c).sum(1)
-        return torch.abs((opt_obj - batch_obj) / opt_obj), None, None
+        return pred_x, torch.abs((opt_obj - batch_obj) / opt_obj), None, None
 
     @torch.no_grad()
     def cycle_eval(self, data, num_eval_steps):

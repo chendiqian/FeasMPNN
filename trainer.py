@@ -9,7 +9,8 @@ cos_metric = torch.nn.CosineEmbeddingLoss(reduction='none')
 class Trainer:
     def __init__(self,
                  loss_type,
-                 loss_lambda):
+                 coeff_l2,
+                 coeff_cos):
         self.best_val_loss = 1.e8
         self.best_cos_sim = 1.e8
         self.best_objgap = 1.e8
@@ -23,7 +24,8 @@ class Trainer:
             pass
         else:
             raise ValueError
-        self.loss_lambda = loss_lambda
+        self.coeff_l2 = coeff_l2
+        self.coeff_cos = coeff_cos
 
     def train(self, dataloader, model, optimizer):
         model.train()
@@ -45,7 +47,7 @@ class Trainer:
             num_graphs += data.num_graphs
 
             # use both L2 loss and Cos similarity loss
-            loss = loss + self.loss_lambda * cos_sim
+            loss = self.coeff_l2 * loss + self.coeff_cos * cos_sim
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, error_if_nonfinite=True)
             optimizer.step()

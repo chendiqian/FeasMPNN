@@ -70,7 +70,7 @@ if __name__ == '__main__':
                config=vars(args),
                entity="chendiqian")  # use your own entity
 
-    dataset = LPDataset(args.datapath, transform=GCNNorm() if args.conv.startswith('gcn') else None)
+    dataset = LPDataset(args.datapath, transform=GCNNorm() if 'gcn' in args.conv else None)
     # remove unnecessary for training
     dataset._data.A_col = None
     dataset._data.A_row = None

@@ -1,5 +1,3 @@
-from typing import Optional
-
 import torch
 from torch_geometric.nn import MLP
 
@@ -8,6 +6,7 @@ from models.gcnconv import GCNConv
 from models.ginconv import GINEConv
 from models.gcn2conv import GCN2Conv
 from models.gatconv import GATv2Conv
+from models.sgcnconv import SGCNConv
 from models.hetero_conv import BipartiteConv
 
 
@@ -42,6 +41,9 @@ def get_conv_layer(conv: str,
                         hid_dim=hid_dim,
                         num_mlp_layers=num_mlp_layers,
                         norm=norm)
+    elif conv.lower() == 'sgcnconv':
+        return SGCNConv(edge_dim=1,
+                        hid_dim=hid_dim)
     elif conv.lower() == 'gatconv':
         return GATv2Conv(edge_dim=1,
                          hid_dim=hid_dim,

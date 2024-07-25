@@ -7,13 +7,16 @@ from models.genconv import GENConv
 from models.gcnconv import GCNConv
 from models.ginconv import GINEConv
 from models.gcn2conv import GCN2Conv
+from models.gatconv import GATv2Conv
 from models.hetero_conv import BipartiteConv
 
 
 def get_conv_layer(conv: str,
                    hid_dim: int,
                    num_mlp_layers: int,
-                   norm: Optional[str]):
+                   norm: str,
+                   head: int,
+                   concat: bool):
     if conv.lower() == 'genconv':
         return GENConv(in_channels=-1,
                        out_channels=hid_dim,
@@ -39,6 +42,13 @@ def get_conv_layer(conv: str,
                         hid_dim=hid_dim,
                         num_mlp_layers=num_mlp_layers,
                         norm=norm)
+    elif conv.lower() == 'gatconv':
+        return GATv2Conv(edge_dim=1,
+                         hid_dim=hid_dim,
+                         num_mlp_layers=num_mlp_layers,
+                         norm=norm,
+                         heads=head,
+                         concat=concat)
     else:
         raise NotImplementedError
 
@@ -46,6 +56,8 @@ def get_conv_layer(conv: str,
 class BipartiteHeteroGNN(torch.nn.Module):
     def __init__(self,
                  conv,
+                 head,
+                 concat,
                  hid_dim,
                  num_conv_layers,
                  num_pred_layers,
@@ -61,8 +73,8 @@ class BipartiteHeteroGNN(torch.nn.Module):
         self.gcns = torch.nn.ModuleList()
         for layer in range(num_conv_layers):
             self.gcns.append(BipartiteConv(
-                get_conv_layer(conv, hid_dim, num_mlp_layers, norm),
-                get_conv_layer(conv, hid_dim, num_mlp_layers, norm)
+                get_conv_layer(conv, hid_dim, num_mlp_layers, norm, head, concat),
+                get_conv_layer(conv, hid_dim, num_mlp_layers, norm, head, concat)
             ))
 
         self.predictor = MLP([hid_dim] * num_pred_layers + [1], norm=None)

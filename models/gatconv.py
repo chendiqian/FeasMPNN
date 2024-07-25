@@ -35,13 +35,13 @@ class GATv2Conv(MessagePassing):
 
         self.lin_l = Linear(hid_dim, heads * hid_dim, weight_initializer='glorot')
         self.lin_r = Linear(hid_dim, heads * hid_dim, weight_initializer='glorot')
-        self.lin_dst = Linear(hid_dim, hid_dim, weight_initializer='glorot')
+        # self.lin_dst = Linear(hid_dim, hid_dim, weight_initializer='glorot')
 
         self.att = Parameter(torch.empty(1, heads, hid_dim))
         glorot(self.att)
 
-        self.lin_edge = Linear(edge_dim, hid_dim, bias=False, weight_initializer='glorot')
-        self.lin_edge_att = Linear(edge_dim, heads * hid_dim, bias=False, weight_initializer='glorot')
+        self.lin_edge = Linear(edge_dim, heads * hid_dim, bias=False, weight_initializer='glorot')
+        # self.lin_edge_att = Linear(edge_dim, heads * hid_dim, bias=False, weight_initializer='glorot')
         self.mlp = MLP([-1] + [hid_dim] * num_mlp_layers, norm=norm, plain_last=False)
 
     def forward(self,
@@ -55,15 +55,15 @@ class GATv2Conv(MessagePassing):
         x_l = self.lin_l(x_l).view(-1, H, C)
         x_r = self.lin_r(x_r).view(-1, H, C)
 
+        edge_attr = self.lin_edge(edge_attr).view(-1, self.heads, self.out_channels)
         alpha = self.edge_updater(edge_index, x=(x_l, x_r), edge_attr=edge_attr)
         # scatter_sum(alpha, edge_index[1], reduce='sum', dim=0) == all ones
 
-        out = self.propagate(edge_index, x=(x_l, x_r), alpha=alpha, edge_attr=self.lin_edge(edge_attr))
-
-        assert not self.concat
-        out = out.mean(dim=1)
-        out = out + self.lin_dst(x[1])
-
+        out = self.propagate(edge_index, x=(x_l, x_r), alpha=alpha, edge_attr=edge_attr)
+        if self.concat:
+            out = (out + x_r).reshape(out.shape[0], H * C)
+        else:
+            out = (out + x_r).mean(dim=1)
         return self.mlp(out, batch)
 
     def edge_update(self, x_j: Tensor, x_i: Tensor, edge_attr: Tensor,
@@ -78,13 +78,12 @@ class GATv2Conv(MessagePassing):
         """
         x = x_j + x_i
 
-        if edge_attr is not None:
-            edge_attr = self.lin_edge_att(edge_attr)
-            edge_attr = edge_attr.view(-1, self.heads, self.out_channels)
-            x = x + edge_attr
+        # edge_attr = self.lin_edge_att(edge_attr)
+        # edge_attr = edge_attr.view(-1, self.heads, self.out_channels)
+        x = x + edge_attr
 
-        x = F.leaky_relu(x, self.negative_slope)  # nnodes x nheads x F
-        alpha = (x * self.att).sum(dim=-1)  # nnodes x nheads
+        x = F.leaky_relu(x, self.negative_slope)  # nedges x nheads x F
+        alpha = (x * self.att).sum(dim=-1)  # nedges x nheads
         alpha = softmax(alpha, index, ptr, dim_size)
         alpha = F.dropout(alpha, p=self.dropout, training=self.training)
         return alpha

@@ -46,6 +46,8 @@ def args_parser():
     parser.add_argument('--ipm_eval_steps', type=int, default=64)
     parser.add_argument('--eval_every', type=int, default=1)
     parser.add_argument('--conv', type=str, default='gcnconv')
+    parser.add_argument('--heads', type=int, default=1, help='for GAT only')
+    parser.add_argument('--concat', default=False, action='store_true', help='for GAT only')
     parser.add_argument('--hidden', type=int, default=128)
     parser.add_argument('--num_conv_layers', type=int, default=6)
     parser.add_argument('--num_pred_layers', type=int, default=2)
@@ -74,11 +76,6 @@ if __name__ == '__main__':
                entity="chendiqian")  # use your own entity
 
     dataset = LPDataset(args.datapath, transform=GCNNorm() if args.conv.startswith('gcn') else None)
-    # remove unnecessary for training
-    dataset._data.A_col = None
-    dataset._data.A_row = None
-    dataset._data.A_val = None
-
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     collate_fn = partial(collate_fn_lp_bi, device=device)
     train_loader = DataLoader(dataset[:int(len(dataset) * 0.8)],
@@ -105,6 +102,8 @@ if __name__ == '__main__':
         if args.ckpt:
             os.mkdir(os.path.join(log_folder_name, f'run{run}'))
         gnn = BipartiteHeteroGNN(conv=args.conv,
+                                 head=args.heads,
+                                 concat=args.concat,
                                  hid_dim=args.hidden,
                                  num_conv_layers=args.num_conv_layers,
                                  num_pred_layers=args.num_pred_layers,

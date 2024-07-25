@@ -1,9 +1,8 @@
 import numpy as np
 import torch
 from torch_geometric.utils import to_dense_batch
-from utils.benchmark import sync_timer
+from data.utils import sync_timer, l1_normalize
 from solver.line_search import batch_line_search
-from utils.data import l1_normalize
 
 
 class CycleGNN(torch.nn.Module):

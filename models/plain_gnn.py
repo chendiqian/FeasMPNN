@@ -3,8 +3,7 @@ import numpy as np
 from torch_geometric.utils import to_dense_batch
 
 from models.hetero_gnn import BipartiteHeteroGNN
-from utils.benchmark import sync_timer
-from utils.data import l1_normalize
+from data.utils import sync_timer, l1_normalize
 from solver.line_search import batch_line_search
 
 

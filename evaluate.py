@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from trainer import Trainer
 from data.dataset import LPDataset
-from utils.benchmark import sync_timer, gaussian_filter_bt
+from data.utils import sync_timer, gaussian_filter_bt
 from data.collate_func import collate_fn_lp_bi
 from data.transforms import GCNNorm
 from models.cycle_model import CycleGNN

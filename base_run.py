@@ -16,7 +16,7 @@ from data.transforms import GCNNorm
 from data.prefetch_generator import BackgroundGenerator
 from models.plain_gnn import BaseBipartiteHeteroGNN
 from trainer import Trainer
-from utils.logging import save_run_config
+from data.utils import save_run_config
 
 
 def args_parser():

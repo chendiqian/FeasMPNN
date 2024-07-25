@@ -17,7 +17,7 @@ from data.prefetch_generator import BackgroundGenerator
 from models.hetero_gnn import BipartiteHeteroGNN
 from models.cycle_model import CycleGNN
 from trainer import Trainer
-from utils.logging import save_run_config
+from data.utils import save_run_config
 
 
 def args_parser():

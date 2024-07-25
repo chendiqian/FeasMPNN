@@ -64,7 +64,8 @@ class BipartiteHeteroGNN(torch.nn.Module):
                  num_conv_layers,
                  num_pred_layers,
                  num_mlp_layers,
-                 norm):
+                 norm,
+                 share_convs=False):
         super().__init__()
 
         self.num_layers = num_conv_layers
@@ -76,7 +77,7 @@ class BipartiteHeteroGNN(torch.nn.Module):
         for layer in range(num_conv_layers):
             self.gcns.append(BipartiteConv(
                 get_conv_layer(conv, hid_dim, num_mlp_layers, norm, head, concat),
-                get_conv_layer(conv, hid_dim, num_mlp_layers, norm, head, concat)
+                get_conv_layer(conv, hid_dim, num_mlp_layers, norm, head, concat) if not share_convs else None
             ))
 
         self.predictor = MLP([hid_dim] * num_pred_layers + [1], norm=None)

@@ -9,11 +9,14 @@ class BipartiteConv(torch.nn.Module):
     def __init__(
             self,
             v2c_conv: torch.nn.Module,
-            c2v_conv: torch.nn.Module,
+            c2v_conv: Optional[torch.nn.Module],
     ):
         super().__init__()
         self.v2c_conv = v2c_conv
-        self.c2v_conv = c2v_conv
+        if c2v_conv is not None:
+            self.c2v_conv = c2v_conv
+        else:
+            self.c2v_conv = v2c_conv
 
     def forward(
             self,

@@ -1,6 +1,5 @@
 import os
 import argparse
-import yaml
 from functools import partial
 
 import copy
@@ -18,6 +17,7 @@ from data.prefetch_generator import BackgroundGenerator
 from models.hetero_gnn import BipartiteHeteroGNN
 from models.cycle_model import CycleGNN
 from trainer import Trainer
+from utils.logging import save_run_config
 
 
 def args_parser():
@@ -59,15 +59,7 @@ def args_parser():
 
 if __name__ == '__main__':
     args = args_parser()
-
-    if args.ckpt:
-        if not os.path.isdir('logs'):
-            os.mkdir('logs')
-        exist_runs = [d for d in os.listdir('logs') if d.startswith(args.wandbname)]
-        log_folder_name = f'logs/{args.wandbname}exp{len(exist_runs)}'
-        os.mkdir(log_folder_name)
-        with open(os.path.join(log_folder_name, 'config.yaml'), 'w') as outfile:
-            yaml.dump(vars(args), outfile, default_flow_style=False)
+    log_folder_name = save_run_config(args)
 
     wandb.init(project=args.wandbproject,
                name=args.wandbname if args.wandbname else None,

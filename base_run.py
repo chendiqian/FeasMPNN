@@ -42,7 +42,7 @@ def args_parser():
     parser.add_argument('--eval_every', type=int, default=1)
     parser.add_argument('--conv', type=str, default='gcnconv')
     parser.add_argument('--heads', type=int, default=1, help='for GAT only')
-    parser.add_argument('--concat', type=int, default=0, help='for GAT only')
+    parser.add_argument('--concat', default=False, action='store_true', help='for GAT only')
     parser.add_argument('--hidden', type=int, default=128)
     parser.add_argument('--num_conv_layers', type=int, default=6)
     parser.add_argument('--num_pred_layers', type=int, default=2)

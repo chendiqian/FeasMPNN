@@ -27,7 +27,9 @@ class Trainer:
         self.coeff_l2 = coeff_l2
         self.coeff_cos = coeff_cos
 
-    def train(self, dataloader, model, optimizer):
+    def train(self, dataloader, model, optimizer, local_device = None):
+        if local_device is None:
+            local_device = device
         model.train()
         optimizer.zero_grad()
 
@@ -35,7 +37,7 @@ class Trainer:
         cos_sims = 0.
         num_graphs = 0
         for i, data in enumerate(dataloader):
-            data = data.to(device)
+            data = data.to(local_device)
             optimizer.zero_grad()
 
             pred, label = model(data)  # nnodes x steps
@@ -55,7 +57,9 @@ class Trainer:
         return train_losses.item() / num_graphs, cos_sims.item() / num_graphs
 
     @torch.no_grad()
-    def eval(self, dataloader, model):
+    def eval(self, dataloader, model, local_device = None):
+        if local_device is None:
+            local_device = device
         model.eval()
 
         val_losses = 0.
@@ -63,7 +67,7 @@ class Trainer:
         num_graphs = 0
         obj_gaps = []
         for i, data in enumerate(dataloader):
-            data = data.to(device)
+            data = data.to(local_device)
             pred, label = model(data)
             loss = self.get_loss(pred, label, data['vals'].batch)
             cos_sim = self.get_cos_sim(pred, label, data['vals'].batch)
@@ -95,13 +99,15 @@ class Trainer:
         return cos
 
     @torch.no_grad()
-    def eval_cons_violate(self, dataloader, model):
+    def eval_cons_violate(self, dataloader, model, local_device = None):
+        if local_device is None:
+            local_device = device
         model.eval()
 
         violations = 0.
         num_graphs = 0
         for i, data in enumerate(dataloader):
-            data = data.to(device)
+            data = data.to(local_device)
             pred, _ = model(data)
             violation = self.violate_per_batch(pred, data).sum()
             violations += violation

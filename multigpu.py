@@ -74,13 +74,15 @@ def run(rank, dataset, world_size, log_folder_name, args):
     test_set = dataset[int(len(dataset) * 0.9):]
 
     train_sampler = DistributedSampler(train_set, num_replicas=world_size, rank=rank)
+    val_sampler = DistributedSampler(val_set, num_replicas=world_size, rank=rank)
 
     train_loader = DataLoader(train_set,
                               batch_size=args.batchsize // world_size,
                               collate_fn=collate_fn,
                               sampler=train_sampler)
     val_loader = DataLoader(val_set,
-                              batch_size=args.val_batchsize,
+                              batch_size=args.val_batchsize // world_size,
+                            sampler=val_sampler,
                               collate_fn=collate_fn)
     test_loader = DataLoader(test_set,
                             batch_size=args.val_batchsize,
@@ -132,7 +134,7 @@ def run(rank, dataset, world_size, log_folder_name, args):
         for epoch in range(args.epoch):
             train_loss, train_cos_sim = trainer.train(train_loader, model, optimizer, rank)
 
-            dist.barrier()
+            # dist.barrier()
             train_loss = torch.tensor([train_loss], device=rank, dtype=torch.float)
             train_cos_sim = torch.tensor([train_cos_sim], device=rank, dtype=torch.float)
             dist.all_reduce(train_loss, op=dist.ReduceOp.AVG)
@@ -146,7 +148,18 @@ def run(rank, dataset, world_size, log_folder_name, args):
 
             if epoch % args.eval_every == 0:
                 val_loss, val_cos_sim, val_obj_gap = trainer.eval(val_loader, model.module, rank)
-                dist.barrier()
+                # dist.barrier()
+                val_loss = torch.tensor([val_loss], device=rank, dtype=torch.float)
+                val_cos_sim = torch.tensor([val_cos_sim], device=rank, dtype=torch.float)
+                val_obj_gap = torch.tensor([val_obj_gap], device=rank, dtype=torch.float)
+                dist.all_reduce(val_loss, op=dist.ReduceOp.AVG)
+                dist.all_reduce(val_cos_sim, op=dist.ReduceOp.AVG)
+                dist.all_reduce(val_obj_gap, op=dist.ReduceOp.AVG)
+
+                val_loss = val_loss.item()
+                val_obj_gap = val_obj_gap.item()
+                val_cos_sim = val_cos_sim.item()
+
                 if scheduler is not None:
                     scheduler.step(val_obj_gap)
 

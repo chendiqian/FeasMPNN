@@ -70,25 +70,15 @@ def run(rank, dataset, world_size, log_folder_name, args):
     collate_fn = partial(collate_fn_lp_bi, device=rank)
 
     train_set = dataset[:int(len(dataset) * 0.8)]
-    val_set = dataset[int(len(dataset) * 0.8): int(len(dataset) * 0.9)]
-    test_set = dataset[int(len(dataset) * 0.9):]
-
     train_sampler = DistributedSampler(train_set, num_replicas=world_size, rank=rank)
-    val_sampler = DistributedSampler(val_set, num_replicas=world_size, rank=rank)
-    test_sampler = DistributedSampler(test_set, num_replicas=world_size, rank=rank)
-
     train_loader = DataLoader(train_set,
                               batch_size=args.batchsize // world_size,
                               collate_fn=collate_fn,
                               sampler=train_sampler)
-    val_loader = DataLoader(val_set,
-                              batch_size=args.val_batchsize // world_size,
-                              collate_fn=collate_fn,
-                              sampler=val_sampler)
-    test_loader = DataLoader(test_set,
-                            batch_size=args.val_batchsize // world_size,
-                            collate_fn=collate_fn,
-                            sampler=test_sampler)
+    val_loader = DataLoader(dataset[int(len(dataset) * 0.8): int(len(dataset) * 0.9)],
+                            batch_size=args.val_batchsize, collate_fn=collate_fn)
+    test_loader = DataLoader(dataset[int(len(dataset) * 0.9):],
+                             batch_size=args.val_batchsize, collate_fn=collate_fn)
 
     if rank == 0:
         wandb.init(project=args.wandbproject,
@@ -148,19 +138,24 @@ def run(rank, dataset, world_size, log_folder_name, args):
                               'lr': scheduler.optimizer.param_groups[0]["lr"]}
 
             if epoch % args.eval_every == 0:
-                val_loss, val_cos_sim, val_obj_gap = trainer.eval(val_loader, model.module, rank)
+                if rank == 0:
+                    val_loss, val_cos_sim, val_obj_gap = trainer.eval(val_loader, model.module, rank)
+                    val_loss = torch.tensor([val_loss], device=rank, dtype=torch.float)
+                    val_cos_sim = torch.tensor([val_cos_sim], device=rank, dtype=torch.float)
+                    val_obj_gap = torch.tensor([val_obj_gap], device=rank, dtype=torch.float)
+                else:
+                    val_loss = val_cos_sim = val_obj_gap = torch.tensor([-1.], device=rank, dtype=torch.float)
 
                 dist.barrier()
-                val_loss = torch.tensor([val_loss], device=rank, dtype=torch.float)
-                val_cos_sim = torch.tensor([val_cos_sim], device=rank, dtype=torch.float)
-                val_obj_gap = torch.tensor([val_obj_gap], device=rank, dtype=torch.float)
-                dist.all_reduce(val_loss, op=dist.ReduceOp.AVG)
-                dist.all_reduce(val_cos_sim, op=dist.ReduceOp.AVG)
-                dist.all_reduce(val_obj_gap, op=dist.ReduceOp.AVG)
-
+                # only main machine runs it, and max aggr for all
+                dist.all_reduce(val_loss, op=dist.ReduceOp.MAX)
+                dist.all_reduce(val_cos_sim, op=dist.ReduceOp.MAX)
+                dist.all_reduce(val_obj_gap, op=dist.ReduceOp.MAX)
                 val_obj_gap = val_obj_gap[0].item()
                 val_loss = val_loss[0].item()
                 val_cos_sim = val_cos_sim[0].item()
+
+                dist.barrier()
                 if scheduler is not None:
                     scheduler.step(val_obj_gap)
 
@@ -184,20 +179,25 @@ def run(rank, dataset, world_size, log_folder_name, args):
                     stats_dict['val_obj_gap'] = val_obj_gap
 
             if rank == 0:
-                infos = ' '.join([k + f'{v}' for k, v in stats_dict.items()])
+                infos = ', '.join([k + f':{v}' for k, v in stats_dict.items()])
                 logging.info(infos)
                 wandb.log(stats_dict)
 
         dist.barrier()
         model.load_state_dict(best_model)
-        test_loss, test_cos_sim, test_obj_gap = trainer.eval(test_loader, model.module, rank)
+
+        if rank == 0:
+            test_loss, test_cos_sim, test_obj_gap = trainer.eval(test_loader, model.module, rank)
+            test_loss = torch.tensor([test_loss], device=rank, dtype=torch.float)
+            test_cos_sim = torch.tensor([test_cos_sim], device=rank, dtype=torch.float)
+            test_obj_gap = torch.tensor([test_obj_gap], device=rank, dtype=torch.float)
+        else:
+            test_loss = test_cos_sim = test_obj_gap = torch.tensor([-1.], device=rank, dtype=torch.float)
+
         dist.barrier()
-        test_loss = torch.tensor([test_loss], device=rank, dtype=torch.float)
-        test_cos_sim = torch.tensor([test_cos_sim], device=rank, dtype=torch.float)
-        test_obj_gap = torch.tensor([test_obj_gap], device=rank, dtype=torch.float)
-        dist.all_reduce(test_loss, op=dist.ReduceOp.AVG)
-        dist.all_reduce(test_cos_sim, op=dist.ReduceOp.AVG)
-        dist.all_reduce(test_obj_gap, op=dist.ReduceOp.AVG)
+        dist.all_reduce(test_loss, op=dist.ReduceOp.MAX)
+        dist.all_reduce(test_cos_sim, op=dist.ReduceOp.MAX)
+        dist.all_reduce(test_obj_gap, op=dist.ReduceOp.MAX)
 
         test_loss = test_loss[0].item()
         test_cos_sim = test_cos_sim[0].item()

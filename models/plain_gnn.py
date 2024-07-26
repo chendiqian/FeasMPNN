@@ -8,6 +8,9 @@ from solver.line_search import batch_line_search
 
 
 class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, encode_start_x=False)
+
     def forward(self, data):
         # the only difference is, not to encode x start position
         cons_embedding = self.b_encoder(data.b[:, None])

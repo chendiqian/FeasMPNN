@@ -65,12 +65,13 @@ class BipartiteHeteroGNN(torch.nn.Module):
                  num_pred_layers,
                  num_mlp_layers,
                  norm,
-                 share_convs=False):
+                 share_convs=False,
+                 encode_start_x=True):
         super().__init__()
 
         self.num_layers = num_conv_layers
         self.b_encoder = MLP([1, hid_dim, hid_dim], norm=None)
-        self.start_pos_encoder = MLP([1, hid_dim, hid_dim], norm=None)
+        self.start_pos_encoder = MLP([1, hid_dim, hid_dim], norm=None) if encode_start_x else None
         self.obj_encoder = MLP([1, hid_dim, hid_dim], norm=None)
 
         self.gcns = torch.nn.ModuleList()

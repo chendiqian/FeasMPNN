@@ -6,9 +6,10 @@ import numpy as np
 import torch
 import wandb
 from torch.utils.data import DataLoader
-from torch_sparse import SparseTensor
 from tqdm import tqdm
 
+from trainer import Trainer
+from data.transforms import GCNNorm
 from data.dataset import LPDataset
 from data.collate_func import collate_fn_lp_bi
 from models.plain_gnn import BaseBipartiteHeteroGNN
@@ -26,6 +27,8 @@ def args_parser():
     # model related
     parser.add_argument('--ipm_eval_steps', type=int, default=64)
     parser.add_argument('--conv', type=str, default='gcnconv')
+    parser.add_argument('--heads', type=int, default=1, help='for GAT only')
+    parser.add_argument('--concat', default=False, action='store_true', help='for GAT only')
     parser.add_argument('--hidden', type=int, default=128)
     parser.add_argument('--num_conv_layers', type=int, default=6)
     parser.add_argument('--num_pred_layers', type=int, default=2)
@@ -44,7 +47,7 @@ if __name__ == '__main__':
                config=vars(args),
                entity="chendiqian")  # use your own entity
 
-    dataset = LPDataset(args.datapath)
+    dataset = LPDataset(args.datapath, transform=GCNNorm() if 'gcn' in args.conv else None)[:-1000]
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     collate_fn = partial(collate_fn_lp_bi, device=device)
@@ -59,6 +62,8 @@ if __name__ == '__main__':
 
     # warmup and set dimensions
     model = BaseBipartiteHeteroGNN(conv=args.conv,
+                                   head=args.heads,
+                                   concat=args.concat,
                                    hid_dim=args.hidden,
                                    num_conv_layers=args.num_conv_layers,
                                    num_pred_layers=args.num_pred_layers,
@@ -74,18 +79,9 @@ if __name__ == '__main__':
         for data in tqdm(dataloader):
             data = data.to(device)
             final_x, _, obj_gaps, time_stamps = model.cycle_eval(data, args.ipm_eval_steps)
-            final_x = final_x.squeeze(0)  # 1 graph, so 1 x nnodes
             gnn_timsteps.append(time_stamps)
             gnn_objgaps.append(obj_gaps)
-
-            c = data.c.numpy()
-            b = data.b.numpy()
-            A = SparseTensor(row=data['cons', 'to', 'vals'].edge_index[0],
-                             col=data['cons', 'to', 'vals'].edge_index[1],
-                             value=data['cons', 'to', 'vals'].edge_attr.squeeze(),
-                             is_sorted=True, trust_data=True).to_dense().cpu().numpy()
-            Ax_minus_b = (A * final_x.cpu().numpy()[None]).sum(1) - b
-            gnn_violation.append(np.abs(Ax_minus_b).mean())
+            gnn_violation.append(Trainer.violate_per_batch(final_x.t(), data)[0].item())
 
     best_gnn_obj = [i[-1] for i in gnn_objgaps]
     time_per_step_gnn = [i[-1] / args.ipm_eval_steps for i in gnn_timsteps]

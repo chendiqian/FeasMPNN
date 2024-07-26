@@ -77,8 +77,12 @@ def run(rank, dataset, world_size, log_folder_name, args):
                               sampler=train_sampler)
     val_loader = DataLoader(dataset[int(len(dataset) * 0.8): int(len(dataset) * 0.9)],
                             batch_size=args.val_batchsize, collate_fn=collate_fn)
+    # we assume val batch only 1
+    assert args.val_batchsize >= int(len(dataset) * 0.1)
+    val_loader = [next(iter(val_loader)).to(rank)]
     test_loader = DataLoader(dataset[int(len(dataset) * 0.9):],
                              batch_size=args.val_batchsize, collate_fn=collate_fn)
+    test_loader = [next(iter(test_loader)).to(rank)]
 
     if rank == 0:
         wandb.init(project=args.wandbproject,

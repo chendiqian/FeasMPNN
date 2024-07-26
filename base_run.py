@@ -109,8 +109,6 @@ if __name__ == '__main__':
 
         trainer = Trainer(args.losstype, 1., 0.)
 
-        test_violation = trainer.eval_cons_violate(BackgroundGenerator(train_loader, device, 4), model)
-
         pbar = tqdm(range(args.epoch))
         for epoch in pbar:
             train_loss, train_cos_sim = trainer.train(BackgroundGenerator(train_loader, device, 4), model, optimizer)

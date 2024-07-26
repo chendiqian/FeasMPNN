@@ -170,7 +170,7 @@ def run(rank, dataset, world_size, log_folder_name, args):
                     stats_dict['val_obj_gap'] = val_obj_gap
 
             if rank == 0:
-                infos = ', '.join([k + f':{v:.6%}' for k, v in stats_dict.items()])
+                infos = ', '.join([k + f':{v:.6f}' for k, v in stats_dict.items()])
                 logging.info(infos)
                 wandb.log(stats_dict)
 

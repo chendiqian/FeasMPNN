@@ -44,7 +44,7 @@ if __name__ == '__main__':
                config=vars(args),
                entity="chendiqian")  # use your own entity
 
-    dataset = LPDataset(args.datapath)[-100:]
+    dataset = LPDataset(args.datapath)
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     collate_fn = partial(collate_fn_lp_bi, device=device)

@@ -101,7 +101,7 @@ def run(rank, dataset, world_size, log_folder_name, args):
         test_objgaps = []
 
     torch.cuda.set_device(rank)
-    for run in range(args.epoch):
+    for run in range(args.runs):
         if rank == 0:
             if args.ckpt:
                 os.mkdir(os.path.join(log_folder_name, f'run{run}'))

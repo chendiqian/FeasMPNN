@@ -41,6 +41,10 @@ def args_parser():
 if __name__ == '__main__':
     args = args_parser()
 
+    raise NotImplementedError
+    # Todo: 1000 test, mean
+    # todo: add plain gnn eval
+
     wandb.init(project=args.wandbproject,
                name=args.wandbname if args.wandbname else None,
                mode="online" if args.use_wandb else "disabled",

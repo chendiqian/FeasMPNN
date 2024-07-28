@@ -65,6 +65,7 @@ if __name__ == '__main__':
                             collate_fn=collate_fn)
 
     gnn_objgaps = []
+    best_gnn_obj = []
     gnn_timsteps = []
     gnn_arange = []
     gnn_violations = []
@@ -86,15 +87,17 @@ if __name__ == '__main__':
         model.load_state_dict(torch.load(os.path.join(args.modelpath, ckpt), map_location=device))
         model.eval()
 
+        gaps = []
         for data in tqdm(dataloader):
             data = data.to(device)
             final_x, _, obj_gaps, time_stamps = model.evaluation(data, True)
             gnn_timsteps.append(time_stamps)
             gnn_objgaps.append(obj_gaps)
+            gaps.append(obj_gaps[-1])
             gnn_arange.append(np.arange(1, args.ipm_eval_steps + 1))
             gnn_violations.append(Trainer.violate_per_batch(final_x.t(), data)[0].item())
+        best_gnn_obj.append(np.mean(gaps))
 
-    best_gnn_obj = [i[-1] for i in gnn_objgaps]
     time_per_step_gnn = [i[-1] / args.ipm_eval_steps for i in gnn_timsteps]
 
     # solver_objgaps = []

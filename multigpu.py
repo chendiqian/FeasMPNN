@@ -131,7 +131,7 @@ def run(rank, dataset, world_size, log_folder_name, args):
                                                          patience=70 // args.eval_every,
                                                          min_lr=1.e-5)
 
-        trainer = Trainer(args.losstype, args.coeff_l2, args.coeff_cos)
+        trainer = Trainer(args.losstype, args.coeff_l2, args.coeff_cos, True)
 
         for epoch in range(args.epoch):
             train_loss, train_cos_sim = trainer.train(train_loader, model, optimizer, rank)

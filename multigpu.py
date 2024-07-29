@@ -75,6 +75,7 @@ def run(rank, dataset, world_size, log_folder_name, args):
 
     train_sampler = DistributedSampler(train_set, num_replicas=world_size, rank=rank)
     val_sampler = DistributedSampler(val_set, num_replicas=world_size, rank=rank)
+    test_sampler = DistributedSampler(test_set, num_replicas=world_size, rank=rank)
 
     train_loader = DataLoader(train_set,
                               batch_size=args.batchsize // world_size,
@@ -85,7 +86,8 @@ def run(rank, dataset, world_size, log_folder_name, args):
                             sampler=val_sampler,
                               collate_fn=collate_fn)
     test_loader = DataLoader(test_set,
-                            batch_size=args.val_batchsize,
+                            batch_size=args.val_batchsize // world_size,
+                             sampler=test_sampler,
                             collate_fn=collate_fn)
 
     if rank == 0:
@@ -135,8 +137,6 @@ def run(rank, dataset, world_size, log_folder_name, args):
             train_loss, train_cos_sim = trainer.train(train_loader, model, optimizer, rank)
 
             # dist.barrier()
-            train_loss = torch.tensor([train_loss], device=rank, dtype=torch.float)
-            train_cos_sim = torch.tensor([train_cos_sim], device=rank, dtype=torch.float)
             dist.all_reduce(train_loss, op=dist.ReduceOp.AVG)
             dist.all_reduce(train_cos_sim, op=dist.ReduceOp.AVG)
 
@@ -149,9 +149,6 @@ def run(rank, dataset, world_size, log_folder_name, args):
             if epoch % args.eval_every == 0:
                 val_loss, val_cos_sim, val_obj_gap = trainer.eval(val_loader, model.module, rank)
                 # dist.barrier()
-                val_loss = torch.tensor([val_loss], device=rank, dtype=torch.float)
-                val_cos_sim = torch.tensor([val_cos_sim], device=rank, dtype=torch.float)
-                val_obj_gap = torch.tensor([val_obj_gap], device=rank, dtype=torch.float)
                 dist.all_reduce(val_loss, op=dist.ReduceOp.AVG)
                 dist.all_reduce(val_cos_sim, op=dist.ReduceOp.AVG)
                 dist.all_reduce(val_obj_gap, op=dist.ReduceOp.AVG)
@@ -190,7 +187,14 @@ def run(rank, dataset, world_size, log_folder_name, args):
         dist.barrier()
         model.load_state_dict(best_model)
         test_loss, test_cos_sim, test_obj_gap = trainer.eval(test_loader, model.module, rank)
+        dist.all_reduce(test_loss, op=dist.ReduceOp.AVG)
+        dist.all_reduce(test_cos_sim, op=dist.ReduceOp.AVG)
+        dist.all_reduce(test_obj_gap, op=dist.ReduceOp.AVG)
         dist.barrier()
+
+        test_loss = test_loss.item()
+        test_obj_gap = test_obj_gap.item()
+        test_cos_sim = test_cos_sim.item()
 
         if rank == 0:
             best_val_losses.append(trainer.best_val_loss)

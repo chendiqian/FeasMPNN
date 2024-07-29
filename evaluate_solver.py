@@ -103,7 +103,7 @@ if __name__ == '__main__':
         # ortools
         solver = pywraplp.Solver.CreateSolver('SCIP')
 
-        x = [solver.IntVar(0, 1, f'x{i}') for i in range(num_decision_var)]
+        x = [solver.NumVar(0, 1, f'x{i}') for i in range(num_decision_var)]
 
         objective = solver.Objective()
         for i in range(num_decision_var):

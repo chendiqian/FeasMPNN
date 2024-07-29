@@ -10,7 +10,9 @@ class Trainer:
     def __init__(self,
                  loss_type,
                  coeff_l2,
-                 coeff_cos):
+                 coeff_cos,
+                 return_tensor=False  # for multi gpu
+                 ):
         self.best_val_loss = 1.e8
         self.best_cos_sim = 1.e8
         self.best_objgap = 1.e8
@@ -26,6 +28,7 @@ class Trainer:
             raise ValueError
         self.coeff_l2 = coeff_l2
         self.coeff_cos = coeff_cos
+        self.return_tensor = return_tensor
 
     def train(self, dataloader, model, optimizer, local_device = None):
         if local_device is None:
@@ -54,7 +57,12 @@ class Trainer:
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, error_if_nonfinite=True)
             optimizer.step()
 
-        return train_losses.item() / num_graphs, cos_sims.item() / num_graphs
+        train_losses = train_losses / num_graphs
+        cos_sims = cos_sims / num_graphs
+        if self.return_tensor:
+            train_losses = train_losses.item()
+            cos_sims = cos_sims.item()
+        return train_losses, cos_sims
 
     @torch.no_grad()
     def eval(self, dataloader, model, local_device = None):
@@ -79,8 +87,14 @@ class Trainer:
             _, obj_gap, _, _ = model.evaluation(data)
             obj_gaps.append(obj_gap)
 
-        objs = torch.cat(obj_gaps, dim=0).mean().item()
-        return val_losses.item() / num_graphs, cos_sims.item() / num_graphs, objs
+        objs = torch.cat(obj_gaps, dim=0).mean()
+        val_losses = val_losses / num_graphs
+        cos_sims = cos_sims / num_graphs
+        if self.return_tensor:
+            objs = objs.item()
+            val_losses = val_losses.item()
+            cos_sims = cos_sims.item()
+        return val_losses, cos_sims, objs
 
     def get_loss(self, pred, label, batch):
         loss = self.loss_func(pred - label)  # nnodes x layers

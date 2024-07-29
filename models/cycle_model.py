@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 from torch_geometric.utils import to_dense_batch
-from data.utils import sync_timer, l1_normalize
+from data.utils import sync_timer, batch_l1_normalize
 from solver.line_search import batch_line_search
 
 
@@ -32,11 +32,13 @@ class CycleGNN(torch.nn.Module):
             pred = self.gnn(data)
             pred_list.append(pred)
 
-            label = l1_normalize(data.x_solution - data.x_start)
+            label = batch_l1_normalize(data.x_solution - data.x_start, vals_batch)
             label_list.append(label)
 
+            pred = batch_l1_normalize(pred.detach(), vals_batch)
+
             # Todo: experimental, barrier function
-            direction = pred.detach() + tau / (data.x_start + tau)
+            direction = pred + 3 * tau / (data.x_start + tau)
             tau = max(tau / 2., 1.e-5)
 
             # projection
@@ -73,8 +75,8 @@ class CycleGNN(torch.nn.Module):
                 t_start = sync_timer()
 
             pred = self.gnn(data)
-            pred = l1_normalize(pred)
-            direction = pred + tau / (data.x_start + tau)
+            pred = batch_l1_normalize(pred, vals_batch)
+            direction = pred + 3. * tau / (data.x_start + tau)
             tau = max(tau / 2., 1.e-5)
 
             # projection

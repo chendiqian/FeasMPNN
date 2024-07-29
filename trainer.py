@@ -59,7 +59,7 @@ class Trainer:
 
         train_losses = train_losses / num_graphs
         cos_sims = cos_sims / num_graphs
-        if self.return_tensor:
+        if not self.return_tensor:
             train_losses = train_losses.item()
             cos_sims = cos_sims.item()
         return train_losses, cos_sims
@@ -90,7 +90,7 @@ class Trainer:
         objs = torch.cat(obj_gaps, dim=0).mean()
         val_losses = val_losses / num_graphs
         cos_sims = cos_sims / num_graphs
-        if self.return_tensor:
+        if not self.return_tensor:
             objs = objs.item()
             val_losses = val_losses.item()
             cos_sims = cos_sims.item()

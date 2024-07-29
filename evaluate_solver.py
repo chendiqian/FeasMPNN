@@ -34,7 +34,7 @@ if __name__ == '__main__':
 
     dataset = LPDataset(args.datapath)[-1000:]
 
-    cplex_times = []
+    # cplex_times = []
     sp_times = []
     scip_times = []
 
@@ -68,36 +68,36 @@ if __name__ == '__main__':
         b = b.tolist()
         c = c.tolist()
 
-        myProblem = cplex.Cplex()
-
-        # Add the decision variables and set their lower bound and upper bound (if necessary)
-        myProblem.variables.add(names=["x" + str(i) for i in range(num_decision_var)])
-        for i in range(num_decision_var):
-            myProblem.variables.set_lower_bounds(i, 0.0)
-            myProblem.variables.set_upper_bounds(i, 1.0)
-
-        # Add constraints
-        for i in range(num_constraints):
-            myProblem.linear_constraints.add(
-                lin_expr=[cplex.SparsePair(ind=[j for j in range(num_decision_var)], val=A[i])],
-                rhs=[b[i]],
-                names=["c" + str(i)],
-                senses=["E"]
-            )
-
-        # Add objective function and set its sense
-        for i in range(num_decision_var):
-            myProblem.objective.set_linear([(i, c[i])])
-        myProblem.objective.set_sense(myProblem.objective.sense.minimize)
-
-        # Solve the model and print the answer
-        t1 = time.time()
-        myProblem.solve()
-        t2 = time.time()
-        x = myProblem.solution.get_values()
-        obj = np.array(x).dot(np.array(c))
-
-        cplex_times.append(end_t - start_t)
+        # myProblem = cplex.Cplex()
+        #
+        # # Add the decision variables and set their lower bound and upper bound (if necessary)
+        # myProblem.variables.add(names=["x" + str(i) for i in range(num_decision_var)])
+        # for i in range(num_decision_var):
+        #     myProblem.variables.set_lower_bounds(i, 0.0)
+        #     myProblem.variables.set_upper_bounds(i, 1.0)
+        #
+        # # Add constraints
+        # for i in range(num_constraints):
+        #     myProblem.linear_constraints.add(
+        #         lin_expr=[cplex.SparsePair(ind=[j for j in range(num_decision_var)], val=A[i])],
+        #         rhs=[b[i]],
+        #         names=["c" + str(i)],
+        #         senses=["E"]
+        #     )
+        #
+        # # Add objective function and set its sense
+        # for i in range(num_decision_var):
+        #     myProblem.objective.set_linear([(i, c[i])])
+        # myProblem.objective.set_sense(myProblem.objective.sense.minimize)
+        #
+        # # Solve the model and print the answer
+        # t1 = time.time()
+        # myProblem.solve()
+        # t2 = time.time()
+        # x = myProblem.solution.get_values()
+        # obj = np.array(x).dot(np.array(c))
+        #
+        # cplex_times.append(end_t - start_t)
         # cplex_objgaps.append(np.abs(obj - opt_obj) / (opt_obj + 1.e-6))
 
         # ortools
@@ -121,8 +121,8 @@ if __name__ == '__main__':
 
     stat_dict = {"scipy_mean": np.mean(sp_times),
                  "scipy_std": np.std(sp_times),
-                 "cplex_mean": np.mean(cplex_times),
-                 "cplex_std": np.std(cplex_times),
+                 # "cplex_mean": np.mean(cplex_times),
+                 # "cplex_std": np.std(cplex_times),
                  "scip_mean": np.mean(scip_times),
                  "scip_std": np.std(scip_times)}
 

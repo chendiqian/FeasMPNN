@@ -118,6 +118,7 @@ if __name__ == '__main__':
         t2 = time.time()
         scip_times.append(t2 - t1)
         x = np.array([x[i].solution_value() for i in range(num_decision_var)])
+        wandb.log({'scipy': sp_times[-1], 'scip': scip_times[-1]})
 
     stat_dict = {"scipy_mean": np.mean(sp_times),
                  "scipy_std": np.std(sp_times),

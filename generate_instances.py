@@ -142,7 +142,7 @@ class Graph:
             The generated graph.
         """
         all_edges = np.vstack(np.triu_indices(number_of_nodes, k=1))
-        selected_edges = np.random.binomial(1, np.ones(all_edges.shape[1]) * edge_probability, size=None)
+        selected_edges = random.binomial(1, np.ones(all_edges.shape[1]) * edge_probability, size=None)
         selected_edges = np.where(selected_edges)[0]
         selected_edges = all_edges[:, selected_edges].T
 

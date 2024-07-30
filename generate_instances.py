@@ -141,16 +141,29 @@ class Graph:
         Graph
             The generated graph.
         """
-        edges = set()
+        all_edges = np.vstack(np.triu_indices(number_of_nodes, k=1))
+        selected_edges = np.random.binomial(1, np.ones(all_edges.shape[1]) * edge_probability, size=None)
+        selected_edges = np.where(selected_edges)[0]
+        selected_edges = all_edges[:, selected_edges].T
+
         degrees = np.zeros(number_of_nodes, dtype=int)
+        node_id, cnts = np.unique(selected_edges, return_counts=True)
+        degrees[node_id] = cnts
+
+        edges = set()
         neighbors = {node: set() for node in range(number_of_nodes)}
-        for edge in combinations(np.arange(number_of_nodes), 2):
-            if random.uniform() < edge_probability:
-                edges.add(edge)
-                degrees[edge[0]] += 1
-                degrees[edge[1]] += 1
-                neighbors[edge[0]].add(edge[1])
-                neighbors[edge[1]].add(edge[0])
+        for n1, n2 in selected_edges:
+            edges.add((n1, n2))
+            neighbors[n1].add(n2)
+            neighbors[n2].add(n1)
+
+        # for edge in combinations(np.arange(number_of_nodes), 2):
+        #     if random.uniform() < edge_probability:
+        #         edges.add(edge)
+        #         degrees[edge[0]] += 1
+        #         degrees[edge[1]] += 1
+        #         neighbors[edge[0]].add(edge[1])
+        #         neighbors[edge[1]].add(edge[0])
         graph = Graph(number_of_nodes, edges, degrees, neighbors)
         return graph
 

@@ -68,6 +68,7 @@ class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
         # proj into feasible space
         pred_x = project_solution(pred_x, A, b)
         pred_x = torch.from_numpy(pred_x).float().to(device)
+        time_total = sync_timer() - t_start
 
         # reset
         obj_gaps = []
@@ -81,6 +82,7 @@ class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
         batch = data['vals'].batch
         for i in range(num_eval_steps):
             # prediction
+            t_start = sync_timer()
             direction = pred_x - data.x_start
             direction = batch_l1_normalize(direction, batch)
             direction = direction + 3 * tau / (data.x_start + tau)
@@ -97,6 +99,8 @@ class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
             alpha = batch_line_search(data.x_start, pred, batch, step_alpha) * 0.995
             # update
             data.x_start = data.x_start + alpha * pred
+            t_end = sync_timer()
+            time_total = time_total + t_end - t_start
 
             current_batched_x, _ = to_dense_batch(data.x_start, batch)  # batchsize x max_nnodes
             current_obj = (current_batched_x * batched_c).sum(1)
@@ -107,7 +111,5 @@ class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
             obj_gaps.append(current_best_obj)
 
         obj_gaps = torch.abs((opt_obj - torch.cat(obj_gaps, dim=0)) / opt_obj).cpu().numpy()
-        t_end = sync_timer()
-        time_total = t_end - t_start
 
         return current_best_batched_x, torch.abs((opt_obj - current_best_obj) / opt_obj), obj_gaps, time_total

@@ -3,8 +3,10 @@ import numpy as np
 from torch_geometric.utils import to_dense_batch
 
 from models.hetero_gnn import BipartiteHeteroGNN
-from data.utils import sync_timer, l1_normalize
+from data.utils import sync_timer, batch_l1_normalize, project_solution
 from solver.line_search import batch_line_search
+
+from torch_sparse import SparseTensor
 
 
 class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
@@ -53,6 +55,19 @@ class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
         """
         apply this to cycle model, but with a few modification
         """
+        # one shot prediction
+        pred_x = self.forward(data)[0]
+        device = pred_x.device
+        pred_x = pred_x.squeeze().detach().cpu().numpy()
+        b = data.b.numpy()
+        A = SparseTensor(row=data['cons', 'to', 'vals'].edge_index[0],
+                         col=data['cons', 'to', 'vals'].edge_index[1],
+                         value=data['cons', 'to', 'vals'].edge_attr.squeeze(),
+                         is_sorted=True, trust_data=True).to_dense().numpy()
+        # proj into feasible space
+        pred_x = project_solution(pred_x, A, b)
+        pred_x = torch.from_numpy(pred_x).float().to(device)
+
         # reset
         obj_gaps = []
         time_steps = []
@@ -67,10 +82,9 @@ class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
         for i in range(num_eval_steps):
             # prediction
             t_start = sync_timer()
-            pred_x = self.forward(data)[0].squeeze()
             direction = pred_x - data.x_start
-            direction = l1_normalize(direction)
-            direction = direction + tau / (data.x_start + tau)
+            direction = batch_l1_normalize(direction, batch)
+            direction = direction + 3 * tau / (data.x_start + tau)
             tau = max(tau / 2., 1.e-5)
 
             # projection

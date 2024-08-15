@@ -6,6 +6,7 @@ import seaborn as sns
 import torch
 import yaml
 from torch_geometric.utils import scatter
+from qpsolvers import solve_qp
 
 
 def sync_timer():
@@ -53,3 +54,22 @@ def save_run_config(args):
             yaml.dump(vars(args), outfile, default_flow_style=False)
         return log_folder_name
     return None
+
+
+def project_solution(pred, A, b, max_iter=100, eps=1.e-5):
+    P = np.eye(A.shape[1]).astype(np.float64)
+    q = np.zeros(A.shape[1]).astype(np.float64)
+    G = None
+    h = None
+    Amatrix = A.astype(np.float64)
+
+    for _ in range(max_iter):
+        bias = b - A @ pred
+        if np.all(np.abs(bias) < eps):
+            break
+
+        proj = solve_qp(P, q, G, h, Amatrix, bias.astype(np.float64), solver="cvxopt")
+        pred = pred + proj
+        pred[pred < 0] = 0.
+
+    return pred

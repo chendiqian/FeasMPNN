@@ -59,7 +59,6 @@ if __name__ == '__main__':
 
     gnn_objgaps = []
     best_gnn_obj = []
-    gnn_timsteps = []
     gnn_times = []
     gnn_violations = []
 
@@ -83,26 +82,20 @@ if __name__ == '__main__':
         vios = []
         for data in tqdm(dataloader):
             data = data.to(device)
-            final_x, _, obj_gaps, time_stamps = model.cycle_eval(data, args.ipm_eval_steps)
-            gnn_timsteps.append(time_stamps)
-            gnn_times.append(time_stamps[-1])
+            final_x, _, obj_gaps, time_total = model.cycle_eval(data, args.ipm_eval_steps)
+            gnn_times.append(time_total)
             gnn_objgaps.append(obj_gaps)
             gaps.append(obj_gaps[-1])
             vios.append(Trainer.violate_per_batch(final_x.t(), data)[0].item())
         best_gnn_obj.append(np.mean(gaps))
         gnn_violations.append(np.mean(vios))
 
-    time_per_step_gnn = [i[-1] / args.ipm_eval_steps for i in gnn_timsteps]
-
-    gnn_timsteps = np.concatenate(gnn_timsteps, axis=0)
     gnn_violations = np.array(gnn_violations, dtype=np.float32)
 
     stat_dict = {"gnn_obj_mean": np.mean(best_gnn_obj),
                  "gnn_obj_std": np.std(best_gnn_obj),
                  "gnn_violation_mean": np.mean(gnn_violations),
                  "gnn_violation_std": np.std(gnn_violations),
-                 "gnn_time_per_step_mean": np.mean(time_per_step_gnn),
-                 "gnn_time_per_step_std": np.std(time_per_step_gnn),
                  "gnn_time_mean": np.mean(gnn_times),
                  "gnn_time_std": np.std(gnn_times)}
 

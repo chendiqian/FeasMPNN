@@ -56,6 +56,7 @@ class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
         apply this to cycle model, but with a few modification
         """
         # one shot prediction
+        t_start = sync_timer()
         pred_x = self.forward(data)[0]
         device = pred_x.device
         pred_x = pred_x.squeeze().detach().cpu().numpy()
@@ -70,7 +71,6 @@ class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
 
         # reset
         obj_gaps = []
-        time_steps = []
         tau = 0.01
         step_alpha = 5.
         current_best_batched_x, _ = to_dense_batch(data.x_start.clone(), data['vals'].batch)  # batchsize x max_nnodes
@@ -81,7 +81,6 @@ class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
         batch = data['vals'].batch
         for i in range(num_eval_steps):
             # prediction
-            t_start = sync_timer()
             direction = pred_x - data.x_start
             direction = batch_l1_normalize(direction, batch)
             direction = direction + 3 * tau / (data.x_start + tau)
@@ -98,7 +97,7 @@ class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
             alpha = batch_line_search(data.x_start, pred, batch, step_alpha) * 0.995
             # update
             data.x_start = data.x_start + alpha * pred
-            t_end = sync_timer()
+
             current_batched_x, _ = to_dense_batch(data.x_start, batch)  # batchsize x max_nnodes
             current_obj = (current_batched_x * batched_c).sum(1)
             better_mask = current_obj < current_best_obj
@@ -106,9 +105,9 @@ class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
             current_best_batched_x = torch.where(better_mask[:, None], current_batched_x, current_best_batched_x)
 
             obj_gaps.append(current_best_obj)
-            time_steps.append(t_end - t_start)
 
         obj_gaps = torch.abs((opt_obj - torch.cat(obj_gaps, dim=0)) / opt_obj).cpu().numpy()
-        time_steps = np.cumsum(time_steps, axis=0)
+        t_end = sync_timer()
+        time_total = t_end - t_start
 
-        return current_best_batched_x, torch.abs((opt_obj - current_best_obj) / opt_obj), obj_gaps, time_steps
+        return current_best_batched_x, torch.abs((opt_obj - current_best_obj) / opt_obj), obj_gaps, time_total

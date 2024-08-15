@@ -40,9 +40,6 @@ def args_parser():
 
 if __name__ == '__main__':
     args = args_parser()
-
-    raise NotImplementedError
-    # Todo: 1000 test, mean
     # todo: add plain gnn eval
 
     wandb.init(project=args.wandbproject,
@@ -61,8 +58,10 @@ if __name__ == '__main__':
                             collate_fn=collate_fn)
 
     gnn_objgaps = []
+    best_gnn_obj = []
     gnn_timsteps = []
-    gnn_violation = []
+    gnn_times = []
+    gnn_violations = []
 
     # warmup and set dimensions
     model = BaseBipartiteHeteroGNN(conv=args.conv,
@@ -80,27 +79,32 @@ if __name__ == '__main__':
         model.load_state_dict(torch.load(os.path.join(args.modelpath, ckpt), map_location=device))
         model.eval()
 
+        gaps = []
+        vios = []
         for data in tqdm(dataloader):
             data = data.to(device)
             final_x, _, obj_gaps, time_stamps = model.cycle_eval(data, args.ipm_eval_steps)
             gnn_timsteps.append(time_stamps)
+            gnn_times.append(time_stamps[-1])
             gnn_objgaps.append(obj_gaps)
-            gnn_violation.append(Trainer.violate_per_batch(final_x.t(), data)[0].item())
+            gaps.append(obj_gaps[-1])
+            vios.append(Trainer.violate_per_batch(final_x.t(), data)[0].item())
+        best_gnn_obj.append(np.mean(gaps))
+        gnn_violations.append(np.mean(vios))
 
-    best_gnn_obj = [i[-1] for i in gnn_objgaps]
     time_per_step_gnn = [i[-1] / args.ipm_eval_steps for i in gnn_timsteps]
 
     gnn_timsteps = np.concatenate(gnn_timsteps, axis=0)
-    gnn_objgaps = np.concatenate(gnn_objgaps, axis=0)
-    gnn_violation = np.array(gnn_violation, dtype=np.float32)
+    gnn_violations = np.array(gnn_violations, dtype=np.float32)
 
     stat_dict = {"gnn_obj_mean": np.mean(best_gnn_obj),
                  "gnn_obj_std": np.std(best_gnn_obj),
+                 "gnn_violation_mean": np.mean(gnn_violations),
+                 "gnn_violation_std": np.std(gnn_violations),
                  "gnn_time_per_step_mean": np.mean(time_per_step_gnn),
                  "gnn_time_per_step_std": np.std(time_per_step_gnn),
-                 "gnn_violation_mean": np.mean(gnn_violation),
-                 "gnn_violation_std": np.std(gnn_violation),
-                 }
+                 "gnn_time_mean": np.mean(gnn_times),
+                 "gnn_time_std": np.std(gnn_times)}
 
     if args.use_wandb:
         wandb.log(stat_dict)

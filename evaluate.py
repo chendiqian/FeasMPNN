@@ -82,6 +82,7 @@ if __name__ == '__main__':
         model.eval()
 
         gaps = []
+        vios = []
         for data in tqdm(dataloader):
             data = data.to(device)
             final_x, _, obj_gaps, time_stamps = model.evaluation(data, True)
@@ -89,8 +90,9 @@ if __name__ == '__main__':
             gnn_times.append(time_stamps[-1])
             gnn_objgaps.append(obj_gaps)
             gaps.append(obj_gaps[-1])
-            gnn_violations.append(Trainer.violate_per_batch(final_x.t(), data)[0].item())
+            vios.append(Trainer.violate_per_batch(final_x.t(), data)[0].item())
         best_gnn_obj.append(np.mean(gaps))
+        gnn_violations.append(np.mean(vios))
 
     time_per_step_gnn = [i[-1] / args.ipm_eval_steps for i in gnn_timsteps]
 

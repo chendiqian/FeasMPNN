@@ -59,11 +59,11 @@ class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
         pred_x = self.forward(data)[0]
         device = pred_x.device
         pred_x = pred_x.squeeze().detach().cpu().numpy()
-        b = data.b.numpy()
+        b = data.b.cpu().numpy()
         A = SparseTensor(row=data['cons', 'to', 'vals'].edge_index[0],
                          col=data['cons', 'to', 'vals'].edge_index[1],
                          value=data['cons', 'to', 'vals'].edge_attr.squeeze(),
-                         is_sorted=True, trust_data=True).to_dense().numpy()
+                         is_sorted=True, trust_data=True).cpu().to_dense().numpy()
         # proj into feasible space
         pred_x = project_solution(pred_x, A, b)
         pred_x = torch.from_numpy(pred_x).float().to(device)

@@ -91,8 +91,6 @@ if __name__ == '__main__':
     test_objgaps = []
 
     for run in range(args.runs):
-        if args.ckpt:
-            os.mkdir(os.path.join(log_folder_name, f'run{run}'))
         gnn = BipartiteHeteroGNN(conv=args.conv,
                                  head=args.heads,
                                  concat=args.concat,
@@ -132,7 +130,7 @@ if __name__ == '__main__':
                     trainer.best_objgap = val_obj_gap
                     best_model = copy.deepcopy(model.state_dict())
                     if args.ckpt:
-                        torch.save(model.state_dict(), os.path.join(log_folder_name, f'run{run}', 'best_model.pt'))
+                        torch.save(model.state_dict(), os.path.join(log_folder_name, f'best_model{run}.pt'))
                 else:
                     trainer.patience += 1
 

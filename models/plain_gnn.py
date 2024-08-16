@@ -55,6 +55,8 @@ class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
         """
         apply this to cycle model, but with a few modification
         """
+        assert data.num_graphs == 1, "not supported for batch graphs"
+
         # one shot prediction
         t_start = sync_timer()
         pred_x = self.forward(data)[0]
@@ -74,7 +76,7 @@ class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
         obj_gaps = []
         tau = 0.01
         step_alpha = 5.
-        current_best_batched_x, _ = to_dense_batch(data.x_start.clone(), data['vals'].batch)  # batchsize x max_nnodes
+        current_best_batched_x, _ = to_dense_batch(pred_x, data['vals'].batch)  # batchsize x max_nnodes
         batched_c, _ = to_dense_batch(data.c, data['vals'].batch)  # batchsize x max_nnodes
         opt_obj = data.obj_solution
         current_best_obj = (current_best_batched_x * batched_c).sum(1)

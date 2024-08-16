@@ -56,20 +56,17 @@ def save_run_config(args):
     return None
 
 
-def project_solution(pred, A, b, max_iter=100, eps=1.e-5):
+def project_solution(pred, A, b):
+    """
+    project a solution to the feasible region: Ax = b, x >= 0
+    """
     P = np.eye(A.shape[1]).astype(np.float64)
     q = np.zeros(A.shape[1]).astype(np.float64)
-    G = None
-    h = None
+    G = -np.eye(A.shape[1]).astype(np.float64)
+    h = pred.astype(np.float64)
     Amatrix = A.astype(np.float64)
 
-    for _ in range(max_iter):
-        bias = b - A @ pred
-        if np.all(np.abs(bias) < eps):
-            break
-
-        proj = solve_qp(P, q, G, h, Amatrix, bias.astype(np.float64), solver="cvxopt")
-        pred = pred + proj
-        pred[pred < 0] = 0.
-
+    bias = b - A @ pred
+    proj = solve_qp(P, q, G, h, Amatrix, bias.astype(np.float64), solver="cvxopt")
+    pred = pred + proj
     return pred

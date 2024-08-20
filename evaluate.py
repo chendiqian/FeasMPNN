@@ -27,6 +27,7 @@ def args_parser():
     parser.add_argument('--plot', default=False, action='store_true')
 
     # model related
+    parser.add_argument('--batchsize', type=int, default=1)
     parser.add_argument('--ipm_eval_steps', type=int, default=64)
     parser.add_argument('--conv', type=str, default='gcnconv')
     parser.add_argument('--heads', type=int, default=1, help='for GAT only')
@@ -54,7 +55,7 @@ if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     collate_fn = partial(collate_fn_lp_bi, device=device)
     dataloader = DataLoader(dataset,
-                            batch_size=1,
+                            batch_size=args.batchsize,
                             shuffle=False,
                             collate_fn=collate_fn)
 
@@ -90,7 +91,9 @@ if __name__ == '__main__':
             gnn_times.append(time_stamps[-1])
             gnn_objgaps.append(obj_gaps)
             gaps.append(obj_gaps[-1])
-            vios.append(Trainer.violate_per_batch(final_x.t(), data)[0].item())
+            vios.append(Trainer.violate_per_batch(final_x[:, None], data))
+        gaps = np.concatenate(gaps, axis=0)
+        vios = np.concatenate(vios)
         best_gnn_obj.append(np.mean(gaps))
         gnn_violations.append(np.mean(vios))
 

@@ -127,7 +127,7 @@ class Trainer:
             violations += violation
             num_graphs += data.num_graphs
 
-        return violations.item() / num_graphs
+        return violations / num_graphs
 
     @classmethod
     def violate_per_batch(cls, pred, data) -> torch.Tensor:
@@ -135,4 +135,4 @@ class Trainer:
                           data['cons', 'to', 'vals'].edge_attr.squeeze(),
                           data['cons'].num_nodes, data['vals'].num_nodes, pred).squeeze() - data.b
         violation = scatter(torch.abs(Ax_minus_b), data['cons'].batch, dim=0, reduce='mean')  # (batchsize,)
-        return violation
+        return violation.cpu().numpy()

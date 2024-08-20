@@ -86,7 +86,7 @@ if __name__ == '__main__':
             gnn_times.append(time_total)
             gnn_objgaps.append(obj_gaps)
             gaps.append(obj_gaps[-1])
-            vios.append(Trainer.violate_per_batch(final_x.t(), data)[0].item())
+            vios.append(Trainer.violate_per_batch(final_x.t(), data)[0])
         best_gnn_obj.append(np.mean(gaps))
         gnn_violations.append(np.mean(vios))
 

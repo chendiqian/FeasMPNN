@@ -77,7 +77,8 @@ if __name__ == '__main__':
                              num_mlp_layers=args.num_mlp_layers,
                              norm=args.norm)
     model = CycleGNN(1, args.ipm_eval_steps, gnn, args.tau, args.tau_scale).to(device)
-    data = next(iter(dataloader)).to(device)
+    with torch.no_grad():
+        data = next(iter(dataloader)).to(device)
     _ = gnn(data)
 
     for ckpt in [n for n in os.listdir(args.modelpath) if n.endswith('.pt')]:

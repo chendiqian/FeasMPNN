@@ -24,8 +24,9 @@ class CycleGNN(torch.nn.Module):
 
     def forward(self, data):
 
-        # reset
-        tau = self.init_tau
+        # this set of param generally works well for training
+        tau = 0.01
+        scale = 0.5
         pred_list = []
         label_list = []
 
@@ -40,9 +41,9 @@ class CycleGNN(torch.nn.Module):
 
             pred = batch_l1_normalize(pred.detach(), vals_batch)
 
-            # Todo: experimental, barrier function
+            # barrier function
             direction = pred + 3 * tau / (data.x_start + tau)
-            tau = max(tau / 2., 1.e-5)
+            tau = max(tau * scale, 1.e-5)
 
             # projection
             if data.proj_matrix.dim() == 2:  # only 1 graph

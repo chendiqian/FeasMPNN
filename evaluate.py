@@ -81,6 +81,10 @@ if __name__ == '__main__':
         data = next(iter(dataloader)).to(device)
     _ = gnn(data)
 
+    data = None
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
     for ckpt in [n for n in os.listdir(args.modelpath) if n.endswith('.pt')]:
         model.load_state_dict(torch.load(os.path.join(args.modelpath, ckpt), map_location=device))
         model.eval()

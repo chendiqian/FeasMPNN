@@ -30,7 +30,7 @@ def args_parser():
     parser.add_argument('--batchsize', type=int, default=1)
     parser.add_argument('--ipm_eval_steps', type=int, default=64)
     parser.add_argument('--tau', type=float, default=0.01)
-    parser.add_argument('--tau_scale', type=float, default=0.8)
+    parser.add_argument('--tau_scale', type=float, default=0.5)
     parser.add_argument('--conv', type=str, default='gcnconv')
     parser.add_argument('--heads', type=int, default=1, help='for GAT only')
     parser.add_argument('--concat', default=False, action='store_true', help='for GAT only')

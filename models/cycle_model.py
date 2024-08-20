@@ -9,14 +9,17 @@ class CycleGNN(torch.nn.Module):
     def __init__(self,
                  num_steps: int,
                  num_eval_steps: int,
-                 gnn: torch.nn.Module):
+                 gnn: torch.nn.Module,
+                 init_tau: float,
+                 tau_scale: float):
         super().__init__()
 
         self.num_steps = num_steps
         self.num_eval_steps = num_eval_steps
         self.gnn = gnn
         # Todo: experimental, barrier method
-        self.init_tau = 0.01
+        self.init_tau = init_tau
+        self.tau_scale = tau_scale
         self.step_alpha = 5.
 
     def forward(self, data):
@@ -63,7 +66,7 @@ class CycleGNN(torch.nn.Module):
         obj_gaps = []
         time_steps = []
         tau = self.init_tau
-        current_best_batched_x, _ = to_dense_batch(data.x_start.clone(), data['vals'].batch)  # batchsize x max_nnodes
+        current_best_batched_x, real_node_mask = to_dense_batch(data.x_start.clone(), data['vals'].batch)  # batchsize x max_nnodes
         batched_c, _ = to_dense_batch(data.c, data['vals'].batch)  # batchsize x max_nnodes
         opt_obj = data.obj_solution
         current_best_obj = (current_best_batched_x * batched_c).sum(1)
@@ -77,7 +80,7 @@ class CycleGNN(torch.nn.Module):
             pred = self.gnn(data)
             pred = batch_l1_normalize(pred, vals_batch)
             direction = pred + 3. * tau / (data.x_start + tau)
-            tau = max(tau / 2., 1.e-5)
+            tau = max(tau * self.tau_scale, 1.e-5)
 
             # projection
             if data.proj_matrix.dim() == 2:  # only 1 graph
@@ -102,7 +105,7 @@ class CycleGNN(torch.nn.Module):
                 time_steps.append(t_end - t_start)
 
         if obj_gaps:
-            obj_gaps = torch.abs((opt_obj - torch.cat(obj_gaps, dim=0)) / opt_obj).cpu().numpy()
+            obj_gaps = torch.abs((opt_obj - torch.stack(obj_gaps, dim=0)) / opt_obj).cpu().numpy()
             time_steps = np.cumsum(time_steps, axis=0)
 
-        return current_best_batched_x, torch.abs((opt_obj - current_best_obj) / opt_obj), obj_gaps, time_steps
+        return current_best_batched_x[real_node_mask], torch.abs((opt_obj - current_best_obj) / opt_obj), obj_gaps, time_steps

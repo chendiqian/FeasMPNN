@@ -115,5 +115,4 @@ if __name__ == '__main__':
                  "gnn_time_mean": np.mean(gnn_times),
                  "gnn_time_std": np.std(gnn_times)}
 
-    if args.use_wandb:
-        wandb.log(stat_dict)
+    wandb.log(stat_dict)

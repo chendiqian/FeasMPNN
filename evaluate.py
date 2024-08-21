@@ -91,7 +91,8 @@ if __name__ == '__main__':
 
         gaps = []
         vios = []
-        for data in tqdm(dataloader):
+        pbar = tqdm(dataloader)
+        for data in pbar:
             data = data.to(device)
             final_x, _, obj_gaps, time_stamps = model.evaluation(data, True)
             gnn_timsteps.append(time_stamps)
@@ -99,6 +100,7 @@ if __name__ == '__main__':
             gnn_objgaps.append(obj_gaps)
             gaps.append(obj_gaps[-1])
             vios.append(Trainer.violate_per_batch(final_x[:, None], data))
+            pbar.set_postfix({'gap': obj_gaps[-1].mean()})
         gaps = np.concatenate(gaps, axis=0)
         vios = np.concatenate(vios)
         best_gnn_obj.append(np.mean(gaps))

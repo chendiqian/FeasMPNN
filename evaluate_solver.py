@@ -38,7 +38,8 @@ if __name__ == '__main__':
     sp_times = []
     scip_times = []
 
-    for data in tqdm(dataset):
+    pbar = tqdm(dataset)
+    for data in pbar:
         c = data.c.numpy()
         b = data.b.numpy()
         A = SparseTensor(row=data['cons', 'to', 'vals'].edge_index[0],
@@ -119,6 +120,7 @@ if __name__ == '__main__':
         scip_times.append(t2 - t1)
         x = np.array([x[i].solution_value() for i in range(num_decision_var)])
         wandb.log({'scipy': sp_times[-1], 'scip': scip_times[-1]})
+        pbar.set_postfix({'scipy': sp_times[-1], 'scip': scip_times[-1]})
 
     stat_dict = {"scipy_mean": np.mean(sp_times),
                  "scipy_std": np.std(sp_times),

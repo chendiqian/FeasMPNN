@@ -19,3 +19,10 @@ conda install -y -c conda-forge qpsolvers
 
 python run.py --datapath DATA_TO_YOUR_INSTANCES --weight_decay 2.e-7 --batchsize 512 --hidden 180 --num_pred_layers 4 --num_mlp_layers 4 --share_lin_weight false --runs 3 --conv gcnconv
 
+## Evaluation
+During training, we fix the hparams for the log barrier function strength to tau = 0.01, tau_scale = 0.5, which generally works well, and we can find the best model. However, during the inference, a lot can be improved by playing around with these hyperparameters, especially when we want fewer evaluation steps. We list our option for different datasets.
+
+| Dataset   | setc  | mis | cauc | fac   |
+|-----------|-------| --- | --- |-------|
+| tau       | 0.005 | 0.038 | 0.01 | 0.008 |
+| tau scale | 0.85  | 0.63 | 0.85| 0.8   |

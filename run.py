@@ -121,7 +121,7 @@ if __name__ == '__main__':
                           'train_cos_sim': train_cos_sim,
                           'lr': scheduler.optimizer.param_groups[0]["lr"]}
             if epoch % args.eval_every == 0:
-                val_obj_gap = trainer.eval(BackgroundGenerator(val_loader, device, 4), model)
+                val_obj_gap = trainer.eval(val_batch, model)
                 if scheduler is not None:
                     scheduler.step(val_obj_gap)
 
@@ -150,7 +150,7 @@ if __name__ == '__main__':
         best_val_objgaps.append(trainer.best_objgap)
 
         model.load_state_dict(best_model)
-        test_obj_gap = trainer.eval(test_loader, model)
+        test_obj_gap = trainer.eval(test_batch, model)
         # test_losses.append(test_loss)
         # test_cos_sims.append(test_cos_sim)
         test_objgaps.append(test_obj_gap)

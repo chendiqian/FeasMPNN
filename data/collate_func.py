@@ -45,7 +45,7 @@ def collate_fn_lp_bi(graphs: List[Data], perturb: bool = False, device: torch.de
 
     new_batch = Batch.from_data_list(graphs,
                                      exclude_keys=['A_row', 'A_col', 'A_val',
-                                                   'proj_matrix', 'proj_mat_shape'])
+                                                   'nulls', 'proj_matrix', 'proj_mat_shape'])
     # finish the half of symmetric edges
     flip_tensor = torch.tensor([1, 0])
     new_batch[('vals', 'to', 'cons')].edge_index = new_batch[('cons', 'to', 'vals')].edge_index[flip_tensor]

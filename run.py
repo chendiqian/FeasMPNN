@@ -37,7 +37,6 @@ def args_parser():
     parser.add_argument('--epoch', type=int, default=1000)
     parser.add_argument('--patience', type=int, default=300)
     parser.add_argument('--batchsize', type=int, default=32)
-    parser.add_argument('--val_batchsize', type=int, default=1024)
     parser.add_argument('--coeff_l2', type=float, default=0.1, help='balance between L2loss and cos loss')
     parser.add_argument('--coeff_cos', type=float, default=1., help='balance between L2loss and cos loss')
 
@@ -77,13 +76,15 @@ if __name__ == '__main__':
                               shuffle=True,
                               collate_fn=collate_fn)
     val_loader = DataLoader(dataset[int(len(dataset) * 0.8):int(len(dataset) * 0.9)],
-                            batch_size=args.val_batchsize,
+                            batch_size=1000,
                             shuffle=False,
                             collate_fn=collate_fn)
+    val_batch = next(iter(val_loader))
     test_loader = DataLoader(dataset[int(len(dataset) * 0.9):],
-                             batch_size=args.val_batchsize,
+                             batch_size=1000,
                              shuffle=False,
                              collate_fn=collate_fn)
+    test_batch = next(iter(test_loader))
 
     # best_val_losses = []
     # best_val_cos_sims = []

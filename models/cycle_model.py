@@ -33,7 +33,7 @@ class CycleGNN(torch.nn.Module):
         vals_batch = data['vals'].batch
         for i in range(self.num_steps):
             # prediction
-            pred = self.gnn(data)
+            pred = self.gnn(data, data.x_start)
             pred_list.append(pred)
 
             label = batch_l1_normalize(data.x_solution - data.x_start, vals_batch)
@@ -67,7 +67,8 @@ class CycleGNN(torch.nn.Module):
         obj_gaps = []
         time_steps = []
         tau = self.init_tau
-        current_best_batched_x, real_node_mask = to_dense_batch(data.x_start.clone(), data['vals'].batch)  # batchsize x max_nnodes
+        x_start = data.x_start.clone()
+        current_best_batched_x, real_node_mask = to_dense_batch(x_start, data['vals'].batch)  # batchsize x max_nnodes
         batched_c, _ = to_dense_batch(data.c, data['vals'].batch)  # batchsize x max_nnodes
         opt_obj = data.obj_solution
         current_best_obj = (current_best_batched_x * batched_c).sum(1)
@@ -78,9 +79,9 @@ class CycleGNN(torch.nn.Module):
             if return_intern:
                 t_start = sync_timer()
 
-            pred = self.gnn(data)
+            pred = self.gnn(data, x_start)
             pred = batch_l1_normalize(pred, vals_batch)
-            direction = pred + 3. * tau / (data.x_start + tau)
+            direction = pred + 3. * tau / (x_start + tau)
             tau = max(tau * self.tau_scale, 1.e-5)
 
             # projection
@@ -91,12 +92,12 @@ class CycleGNN(torch.nn.Module):
                 pred = torch.einsum('bnm,bm->bn', data.proj_matrix, direction)[nmask]
 
             # line search
-            alpha = batch_line_search(data.x_start, pred, vals_batch, self.step_alpha) * 0.995
+            alpha = batch_line_search(x_start, pred, vals_batch, self.step_alpha) * 0.995
             # update
-            data.x_start = data.x_start + alpha * pred
+            x_start = x_start + alpha * pred
             if return_intern:
                 t_end = sync_timer()
-            current_batched_x, _ = to_dense_batch(data.x_start, vals_batch)  # batchsize x max_nnodes
+            current_batched_x, _ = to_dense_batch(x_start, vals_batch)  # batchsize x max_nnodes
             current_obj = (current_batched_x * batched_c).sum(1)
             better_mask = current_obj < current_best_obj
             current_best_obj = torch.where(better_mask, current_obj, current_best_obj)

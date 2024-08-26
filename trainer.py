@@ -60,32 +60,11 @@ class Trainer:
         return train_losses, cos_sims
 
     @torch.no_grad()
-    def eval(self, dataloader, model):
+    def eval(self, data_batch, model):
         model.eval()
-
-        # val_losses = 0.
-        # cos_sims = 0.
-        # num_graphs = 0
-        obj_gaps = []
-        for i, data in enumerate(dataloader):
-            data = data.to(device)
-            # pred, label = model(data)
-            # loss = self.get_loss(pred, label, data['vals'].batch)
-            # cos_sim = self.get_cos_sim(pred, label, data['vals'].batch)
-
-            # val_losses += loss * data.num_graphs
-            # cos_sims += cos_sim * data.num_graphs
-            # num_graphs += data.num_graphs
-
-            _, obj_gap, _, _ = model.evaluation(data)
-            obj_gaps.append(obj_gap)
-
-        objs = torch.cat(obj_gaps, dim=0).mean().item()
-        # val_losses = val_losses / num_graphs
-        # cos_sims = cos_sims / num_graphs
-        # val_losses = val_losses.item()
-        # cos_sims = cos_sims.item()
-        return objs
+        data_batch = data_batch.to(device)
+        _, obj_gap, _, _ = model.evaluation(data_batch)
+        return obj_gap.mean().item()
 
     def get_loss(self, pred, label, batch):
         loss = self.loss_func(pred - label)  # nnodes x layers

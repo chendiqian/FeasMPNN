@@ -83,7 +83,7 @@ class BipartiteHeteroGNN(torch.nn.Module):
 
         self.predictor = MLP([hid_dim] * num_pred_layers + [1], norm=None)
 
-    def forward(self, data):
+    def forward(self, data, x_start):
         vals_batch: torch.LongTensor = data['vals'].batch
         cons_batch: torch.LongTensor = data['cons'].batch
         c2v_edge_index: torch.LongTensor = data['cons', 'to', 'vals'].edge_index
@@ -92,7 +92,7 @@ class BipartiteHeteroGNN(torch.nn.Module):
         v2c_edge_attr: torch.FloatTensor = data['vals', 'to', 'cons'].edge_attr
 
         cons_embedding = self.b_encoder(data.b[:, None])
-        vals_embedding = self.start_pos_encoder(data.x_start[:, None]) + self.obj_encoder(data.c[:, None])
+        vals_embedding = self.start_pos_encoder(x_start[:, None]) + self.obj_encoder(data.c[:, None])
 
         edge_norms = data.norm if hasattr(data, 'norm') else None
 

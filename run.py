@@ -116,9 +116,12 @@ if __name__ == '__main__':
 
         pbar = tqdm(range(args.epoch))
         for epoch in pbar:
-            train_loss, train_cos_sim = trainer.train(BackgroundGenerator(train_loader, device, 4), model, optimizer)
+            (train_loss,
+             train_cos_sim_first,
+             train_cos_sim_last) = trainer.train(BackgroundGenerator(train_loader, device, 4), model, optimizer)
             stats_dict = {'train_loss': train_loss,
-                          'train_cos_sim': train_cos_sim,
+                          'train_cos_sim_first': train_cos_sim_first,
+                          "train_cos_sim_last": train_cos_sim_last,
                           'lr': scheduler.optimizer.param_groups[0]["lr"]}
             if epoch % args.eval_every == 0:
                 val_obj_gap = trainer.eval(val_batch, model)

@@ -33,7 +33,8 @@ class Trainer:
         optimizer.zero_grad()
 
         train_losses = 0.
-        cos_sims = 0.
+        cos_sims_first = 0.
+        cos_sims_last = 0.
         num_graphs = 0
         for i, data in enumerate(dataloader):
             data = data.to(device)
@@ -41,29 +42,27 @@ class Trainer:
 
             pred, label = model(data)  # nnodes x steps
             loss = self.get_loss(pred, label, data['vals'].batch)
-            cos_sim = self.get_cos_sim(pred, label, data['vals'].batch)
+            cos_sim = self.get_cos_sim(pred, label, data['vals'].batch)  # batchsize x steps
 
             train_losses += loss.detach() * data.num_graphs
-            cos_sims += cos_sim.detach() * data.num_graphs
+            cos_sims_first += cos_sim[:, 0].detach().mean() * data.num_graphs
+            cos_sims_last += cos_sim[:, -1].detach().mean() * data.num_graphs
             num_graphs += data.num_graphs
 
             # use both L2 loss and Cos similarity loss
-            loss = self.coeff_l2 * loss + self.coeff_cos * cos_sim
+            # todo: bias the late game
+            loss = self.coeff_l2 * loss + self.coeff_cos * cos_sim.mean()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, error_if_nonfinite=True)
             optimizer.step()
 
-        train_losses = train_losses / num_graphs
-        cos_sims = cos_sims / num_graphs
-        train_losses = train_losses.item()
-        cos_sims = cos_sims.item()
-        return train_losses, cos_sims
+        return (train_losses / num_graphs).item(), (cos_sims_first / num_graphs).item(), (cos_sims_last / num_graphs).item()
 
     @torch.no_grad()
     def eval(self, data_batch, model):
         model.eval()
         data_batch = data_batch.to(device)
-        _, obj_gap, _, _ = model.evaluation(data_batch)
+        _, obj_gap, _, _, _ = model.evaluation(data_batch)
         return obj_gap.mean().item()
 
     def get_loss(self, pred, label, batch):
@@ -78,8 +77,7 @@ class Trainer:
         pred_batch, _ = to_dense_batch(pred, batch)  # batchsize x max_nnodes x steps
         label_batch, _ = to_dense_batch(label, batch)  # batchsize x max_nnodes x steps
         target = pred_batch.new_ones(pred_batch.shape[0])
-        cos = torch.vmap(cos_metric, in_dims=(2, 2, None), out_dims=1)(pred_batch, label_batch, target)
-        cos = cos.mean()
+        cos = torch.vmap(cos_metric, in_dims=(2, 2, None), out_dims=1)(pred_batch, label_batch, target)  # batchsize x steps
         return cos
 
     @torch.no_grad()

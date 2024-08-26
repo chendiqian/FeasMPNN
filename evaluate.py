@@ -79,7 +79,7 @@ if __name__ == '__main__':
     model = CycleGNN(1, args.ipm_eval_steps, gnn, args.tau, args.tau_scale).to(device)
     with torch.no_grad():
         data = next(iter(dataloader)).to(device)
-    _ = gnn(data)
+    _ = gnn(data, data.x_start)
 
     data = None
     if torch.cuda.is_available():
@@ -94,13 +94,13 @@ if __name__ == '__main__':
         pbar = tqdm(dataloader)
         for data in pbar:
             data = data.to(device)
-            final_x, _, obj_gaps, time_stamps = model.evaluation(data, True)
+            final_x, best_obj, obj_gaps, time_stamps, cos_sims = model.evaluation(data, True)
             gnn_timsteps.append(time_stamps)
             gnn_times.append(time_stamps[-1])
-            gnn_objgaps.append(obj_gaps)
-            gaps.append(obj_gaps[-1])
+            # gnn_objgaps.append(obj_gaps)
+            gaps.append(best_obj)
             vios.append(Trainer.violate_per_batch(final_x[:, None], data))
-            pbar.set_postfix({'gap': obj_gaps[-1].mean()})
+            pbar.set_postfix({'gap': best_obj.mean()})
         gaps = np.concatenate(gaps, axis=0)
         vios = np.concatenate(vios)
         best_gnn_obj.append(np.mean(gaps))

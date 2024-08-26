@@ -3,6 +3,7 @@ import torch
 from torch_geometric.utils import to_dense_batch
 from data.utils import sync_timer, batch_l1_normalize
 from solver.line_search import batch_line_search
+from trainer import Trainer
 
 
 class CycleGNN(torch.nn.Module):
@@ -73,14 +74,20 @@ class CycleGNN(torch.nn.Module):
         opt_obj = data.obj_solution
         current_best_obj = (current_best_batched_x * batched_c).sum(1)
 
+        x_starts = []
+        preds = []
+
         vals_batch = data['vals'].batch
         for i in range(self.num_eval_steps):
+            x_starts.append(x_start)
+
             # prediction
             if return_intern:
                 t_start = sync_timer()
 
             pred = self.gnn(data, x_start)
             pred = batch_l1_normalize(pred, vals_batch)
+            preds.append(pred)
             direction = pred + 3. * tau / (x_start + tau)
             tau = max(tau * self.tau_scale, 1.e-5)
 
@@ -107,7 +114,15 @@ class CycleGNN(torch.nn.Module):
                 time_steps.append(t_end - t_start)
 
         if obj_gaps:
-            obj_gaps = torch.abs((opt_obj - torch.stack(obj_gaps, dim=0)) / opt_obj).cpu().numpy()
+            obj_gaps = torch.stack(obj_gaps, dim=1)   # batchsize x steps
+            obj_gaps = torch.abs((opt_obj[:, None] - obj_gaps) / opt_obj[:, None]).cpu().numpy()
             time_steps = np.cumsum(time_steps, axis=0)
 
-        return current_best_batched_x[real_node_mask], torch.abs((opt_obj - current_best_obj) / opt_obj), obj_gaps, time_steps
+        x_starts = torch.stack(x_starts, 1)  # nnodes x step
+        preds = torch.stack(preds, 1)  # nnodes x step
+        labels = data.x_solution[:, None] - x_starts
+        cos_sims = 1. - Trainer.get_cos_sim(preds, labels, vals_batch)
+
+        final_x = current_best_batched_x[real_node_mask]
+        best_obj = torch.abs((opt_obj - current_best_obj) / opt_obj)
+        return final_x, best_obj, obj_gaps, time_steps, cos_sims

@@ -44,7 +44,7 @@ def collate_fn_lp_bi(graphs: List[Data], perturb: bool = False, device: torch.de
             proj_matrix = torch.einsum('bmf,bnf->bmn', proj_matrix, proj_matrix)
 
     new_batch = Batch.from_data_list(graphs,
-                                     exclude_keys=['A_row', 'A_col', 'A_val',
+                                     exclude_keys=['A_row', 'A_col', 'A_val', 'x',
                                                    'nulls', 'proj_matrix', 'proj_mat_shape'])
     # finish the half of symmetric edges
     flip_tensor = torch.tensor([1, 0])

@@ -40,7 +40,6 @@ def args_parser():
 
 if __name__ == '__main__':
     args = args_parser()
-    # todo: add plain gnn eval
 
     wandb.init(project=args.wandbproject,
                name=args.wandbname if args.wandbname else None,
@@ -57,10 +56,11 @@ if __name__ == '__main__':
                             shuffle=False,
                             collate_fn=collate_fn)
 
-    gnn_objgaps = []
-    best_gnn_obj = []
     gnn_times = []
-    gnn_violations = []
+    oneshot_best_gnn_obj = []
+    oneshot_gnn_violations = []
+    search_best_gnn_obj = []
+    search_gnn_violations = []
 
     # warmup and set dimensions
     model = BaseBipartiteHeteroGNN(conv=args.conv,
@@ -78,26 +78,44 @@ if __name__ == '__main__':
         model.load_state_dict(torch.load(os.path.join(args.modelpath, ckpt), map_location=device))
         model.eval()
 
-        gaps = []
-        vios = []
-        for data in tqdm(dataloader):
+        os_gaps = []
+        os_vios = []
+        search_gaps = []
+        search_vios = []
+
+        pbar = tqdm(dataloader)
+        for data in pbar:
             data = data.to(device)
-            final_x, _, obj_gaps, time_total = model.cycle_eval(data, args.ipm_eval_steps)
+            # oneshot prediction
+            oneshot_prediction, oneshot_obj_gap, *_ = model.evaluation(data)
+            os_vios.append(Trainer.violate_per_batch(oneshot_prediction[:, None], data))
+            oneshot_obj_gap = oneshot_obj_gap.cpu().numpy()
+            os_gaps.append(oneshot_obj_gap)
+
+            # do the search
+            project_x_objgap, final_x, obj_gaps, time_total = model.cycle_eval(data, args.ipm_eval_steps)
             gnn_times.append(time_total)
-            gnn_objgaps.append(obj_gaps)
-            gaps.append(obj_gaps[-1])
-            vios.append(Trainer.violate_per_batch(final_x.t(), data)[0])
-        best_gnn_obj.append(np.mean(gaps))
-        gnn_violations.append(np.mean(vios))
+            search_gaps.append(obj_gaps[-1])
+            search_vios.append(Trainer.violate_per_batch(final_x[:, None], data))
 
-    gnn_violations = np.array(gnn_violations, dtype=np.float32)
+            pbar.set_postfix({'os_gap': oneshot_obj_gap.mean(),
+                              'proj_gap': project_x_objgap,
+                              'search_gap': obj_gaps[-1]})
 
-    stat_dict = {"gnn_obj_mean": np.mean(best_gnn_obj),
-                 "gnn_obj_std": np.std(best_gnn_obj),
-                 "gnn_violation_mean": np.mean(gnn_violations),
-                 "gnn_violation_std": np.std(gnn_violations),
+        search_best_gnn_obj.append(np.mean(np.concatenate(search_gaps)))
+        search_gnn_violations.append(np.mean(np.concatenate(search_vios)))
+        oneshot_best_gnn_obj.append(np.mean(np.concatenate(os_gaps)))
+        oneshot_gnn_violations.append(np.mean(np.concatenate(os_vios)))
+
+    stat_dict = {"oneshot_obj_mean": np.mean(oneshot_best_gnn_obj),
+                 "oneshot_obj_std": np.std(oneshot_best_gnn_obj),
+                 "oneshot_vio_mean": np.mean(oneshot_gnn_violations),
+                 "oneshot_vio_std": np.std(oneshot_gnn_violations),
+                 "search_obj_mean": np.mean(search_best_gnn_obj),
+                 "search_obj_std": np.std(search_best_gnn_obj),
+                 "search_vio_mean": np.mean(search_gnn_violations),
+                 "search_vio_std": np.std(search_gnn_violations),
                  "gnn_time_mean": np.mean(gnn_times),
                  "gnn_time_std": np.std(gnn_times)}
 
-    if args.use_wandb:
-        wandb.log(stat_dict)
+    wandb.log(stat_dict)

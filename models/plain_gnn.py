@@ -46,9 +46,9 @@ class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
 
         # prediction
         pred_x = self.forward(data)[0].squeeze(1)
-        pred_x, _ = to_dense_batch(pred_x, data['vals'].batch)  # batchsize x max_nnodes
+        pred_x, real_node_mask = to_dense_batch(pred_x, data['vals'].batch)  # batchsize x max_nnodes
         batch_obj = (pred_x * batched_c).sum(1)
-        return pred_x, torch.abs((opt_obj - batch_obj) / opt_obj), None, None
+        return pred_x[real_node_mask], torch.abs((opt_obj - batch_obj) / opt_obj), None, None
 
     @torch.no_grad()
     def cycle_eval(self, data, num_eval_steps):
@@ -76,7 +76,7 @@ class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
         obj_gaps = []
         tau = 0.01
         step_alpha = 5.
-        current_best_batched_x, _ = to_dense_batch(pred_x, data['vals'].batch)  # batchsize x max_nnodes
+        current_best_batched_x, real_node_mask = to_dense_batch(pred_x, data['vals'].batch)  # batchsize x max_nnodes
         batched_c, _ = to_dense_batch(data.c, data['vals'].batch)  # batchsize x max_nnodes
         opt_obj = data.obj_solution
         current_best_obj = (current_best_batched_x * batched_c).sum(1)
@@ -114,4 +114,4 @@ class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
 
         obj_gaps = torch.abs((opt_obj - torch.cat(obj_gaps, dim=0)) / opt_obj).cpu().numpy()
 
-        return current_best_batched_x, torch.abs((opt_obj - current_best_obj) / opt_obj), obj_gaps, time_total
+        return current_best_batched_x[real_node_mask], torch.abs((opt_obj - current_best_obj) / opt_obj), obj_gaps, time_total

@@ -23,16 +23,16 @@ class LogEncoder(torch.nn.Module):
         return torch.log(1. / (x + self.bias))
 
 
-class SQRTEncoder:
-    def __init__(self):
-        pass
+class PowerEncoder:
+    def __init__(self, pow: float):
+        self.pow = pow
 
-    def sqrt(self, x):
+    def forward(self, x):
         sign = torch.sign(x)
-        x = sign * torch.sqrt(torch.abs(x))
+        x = sign * torch.abs(x) ** self.pow
         return x
 
-    def sqr(self, x):
+    def backward(self, x):
         sign = torch.sign(x)
-        x = sign * (x ** 2.)
+        x = sign * torch.abs(x) ** (1. / self.pow)
         return x

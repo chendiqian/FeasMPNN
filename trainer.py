@@ -33,8 +33,7 @@ class Trainer:
         optimizer.zero_grad()
 
         train_losses = 0.
-        cos_sims_first = 0.
-        cos_sims_last = 0.
+        cos_sims = 0.
         num_graphs = 0
         for i, data in enumerate(dataloader):
             data = data.to(device)
@@ -45,8 +44,7 @@ class Trainer:
             cos_sim = self.get_cos_sim(pred, label, data['vals'].batch)  # batchsize x steps
 
             train_losses += loss.detach() * data.num_graphs
-            cos_sims_first += cos_sim[:, 0].detach().mean() * data.num_graphs
-            cos_sims_last += cos_sim[:, -1].detach().mean() * data.num_graphs
+            cos_sims = cos_sims + cos_sim.detach().sum(0)
             num_graphs += data.num_graphs
 
             # use both L2 loss and Cos similarity loss
@@ -56,7 +54,7 @@ class Trainer:
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, error_if_nonfinite=True)
             optimizer.step()
 
-        return (train_losses / num_graphs).item(), (cos_sims_first / num_graphs).item(), (cos_sims_last / num_graphs).item()
+        return (train_losses / num_graphs).item(), (cos_sims / num_graphs).cpu().tolist()
 
     @torch.no_grad()
     def eval(self, data_batch, model):

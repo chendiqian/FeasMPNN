@@ -116,12 +116,8 @@ if __name__ == '__main__':
 
         pbar = tqdm(range(args.epoch))
         for epoch in pbar:
-            (train_loss,
-             train_cos_sim_first,
-             train_cos_sim_last) = trainer.train(BackgroundGenerator(train_loader, device, 4), model, optimizer)
+            train_loss, train_cos_sims = trainer.train(BackgroundGenerator(train_loader, device, 4), model, optimizer)
             stats_dict = {'train_loss': train_loss,
-                          'train_cos_sim_first': train_cos_sim_first,
-                          "train_cos_sim_last": train_cos_sim_last,
                           'lr': scheduler.optimizer.param_groups[0]["lr"]}
             if epoch % args.eval_every == 0:
                 val_obj_gap = trainer.eval(val_batch, model)
@@ -147,6 +143,9 @@ if __name__ == '__main__':
                 stats_dict['val_obj_gap'] = val_obj_gap
 
             pbar.set_postfix(stats_dict)
+            # log the cossim, but not show them
+            for idx, cossim in enumerate(train_cos_sims):
+                stats_dict[f'train_cossim_{idx}'] = round(cossim, 3)
             wandb.log(stats_dict)
         # best_val_losses.append(trainer.best_val_loss)
         # best_val_cos_sims.append(trainer.best_cos_sim)

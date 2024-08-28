@@ -1,5 +1,6 @@
 import argparse
 import os
+import pdb
 from functools import partial
 
 import numpy as np
@@ -52,7 +53,7 @@ if __name__ == '__main__':
                config=vars(args),
                entity="chendiqian")  # use your own entity
 
-    dataset = LPDataset(args.datapath, transform=GCNNorm() if 'gcn' in args.conv else None)[-1000:]
+    dataset = LPDataset(args.datapath, transform=GCNNorm() if 'gcn' in args.conv else None)[-4:]
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     collate_fn = partial(collate_fn_lp_bi, device=device)
@@ -98,6 +99,7 @@ if __name__ == '__main__':
             gnn_timsteps.append(time_stamps)
             gnn_times.append(time_stamps[-1])
             # gnn_objgaps.append(obj_gaps)
+            best_obj = best_obj.cpu().numpy()
             gaps.append(best_obj)
             vios.append(Trainer.violate_per_batch(final_x[:, None], data))
             pbar.set_postfix({'gap': best_obj.mean()})

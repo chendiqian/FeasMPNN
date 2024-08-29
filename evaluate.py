@@ -75,6 +75,7 @@ if __name__ == '__main__':
                              hid_dim=args.hidden,
                              num_conv_layers=args.num_conv_layers,
                              num_pred_layers=args.num_pred_layers,
+                             hid_pred=args.hid_pred,
                              num_mlp_layers=args.num_mlp_layers,
                              norm=args.norm)
     model = CycleGNN(1, args.ipm_eval_steps, gnn, args.tau, args.tau_scale).to(device)

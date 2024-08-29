@@ -46,6 +46,7 @@ def args_parser():
     parser.add_argument('--hidden', type=int, default=128)
     parser.add_argument('--num_conv_layers', type=int, default=6)
     parser.add_argument('--num_pred_layers', type=int, default=2)
+    parser.add_argument('--hid_pred', type=int, default=-1)
     parser.add_argument('--num_mlp_layers', type=int, default=2, help='mlp layers within GENConv')
     parser.add_argument('--norm', type=str, default='graphnorm')  # empirically better
 
@@ -94,6 +95,7 @@ if __name__ == '__main__':
                                        hid_dim=args.hidden,
                                        num_conv_layers=args.num_conv_layers,
                                        num_pred_layers=args.num_pred_layers,
+                                       hid_pred=args.hid_pred,
                                        num_mlp_layers=args.num_mlp_layers,
                                        norm=args.norm).to(device)
         best_model = copy.deepcopy(model.state_dict())

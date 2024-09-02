@@ -26,8 +26,8 @@ class CycleGNN(torch.nn.Module):
     def forward(self, data):
 
         # this set of param generally works well for training
-        tau = 0.01
-        scale = 0.5
+        tau = self.init_tau
+        scale = self.tau_scale
         pred_list = []
         label_list = []
 

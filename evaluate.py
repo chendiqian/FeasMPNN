@@ -1,6 +1,5 @@
 import argparse
 import os
-import pdb
 from functools import partial
 
 import numpy as np
@@ -38,6 +37,7 @@ def args_parser():
     parser.add_argument('--hidden', type=int, default=128)
     parser.add_argument('--num_conv_layers', type=int, default=6)
     parser.add_argument('--num_pred_layers', type=int, default=2)
+    parser.add_argument('--hid_pred', type=int, default=-1)
     parser.add_argument('--num_mlp_layers', type=int, default=2, help='mlp layers within GENConv')
     parser.add_argument('--norm', type=str, default='graphnorm')  # empirically better
 

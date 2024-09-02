@@ -50,8 +50,9 @@ class CycleGNN(torch.nn.Module):
             if data.proj_matrix.dim() == 2:  # only 1 graph
                 pred = torch.einsum('mn,n->m', data.proj_matrix, direction)
             else:
-                direction, nmask = to_dense_batch(direction, vals_batch)
-                pred = torch.einsum('bnm,bm->bn', data.proj_matrix, direction)[nmask]
+                direction, nmask = to_dense_batch(direction, vals_batch)  # batchsize x Nmax
+                direction = torch.einsum('bnf,bn->bf', data.nulls_matrix, direction)  # batchsize x Nmax x Neigs
+                pred = torch.einsum('bnf,bf->bn', data.nulls_matrix, direction)[nmask]
 
             # line search
             alpha = batch_line_search(data.x_start, pred, vals_batch, self.step_alpha) * 0.995
@@ -95,8 +96,9 @@ class CycleGNN(torch.nn.Module):
             if data.proj_matrix.dim() == 2:  # only 1 graph
                 pred = torch.einsum('mn,n->m', data.proj_matrix, direction)
             else:
-                direction, nmask = to_dense_batch(direction, vals_batch)
-                pred = torch.einsum('bnm,bm->bn', data.proj_matrix, direction)[nmask]
+                direction, nmask = to_dense_batch(direction, vals_batch)  # batchsize x Nmax
+                direction = torch.einsum('bnf,bn->bf', data.nulls_matrix, direction)  # batchsize x Nmax x Neigs
+                pred = torch.einsum('bnf,bf->bn', data.nulls_matrix, direction)[nmask]
 
             # line search
             alpha = batch_line_search(x_start, pred, vals_batch, self.step_alpha) * 0.995

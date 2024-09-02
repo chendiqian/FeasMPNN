@@ -12,33 +12,19 @@ def collate_fn_lp_bi(graphs: List[Data], device: torch.device = 'cpu'):
     g = graphs[0]
     del g['obj'], g[('vals', 'to', 'obj')], g[('cons', 'to', 'obj')], g[('obj', 'to', 'cons')], g[('obj', 'to', 'vals')]
 
-    has_proj = hasattr(g, 'proj_matrix') and g.proj_matrix is not None
-    if has_proj:
-        assert g.proj_matrix.shape[0] == g.x_solution.shape[0] ** 2
-    else:
-        assert hasattr(g, 'nulls')
-
     if len(graphs) == 1:
         g = graphs[0]
-        if has_proj:
-            proj_matrix = g.proj_matrix.reshape(g.x_solution.shape[0], g.x_solution.shape[0])
-        else:
-            nulls = g.nulls.reshape(g.x_solution.shape[0], -1)
-            proj_matrix = nulls @ nulls.t()
+        nulls = g.nulls.reshape(g.x_solution.shape[0], -1)
+        proj_matrix = nulls @ nulls.t()
     else:
         nnodes = [g.x_solution.shape[0] for g in graphs]
+        num_eigs = [g.nulls.shape[0] // g.x_solution.shape[0] for g in graphs]
         max_nnodes = max(nnodes)
-        proj_matrix = torch.zeros(len(graphs), max_nnodes, max_nnodes)
+        proj_matrix = torch.zeros(len(graphs), max_nnodes, max(num_eigs))
         for i in range(len(graphs)):
             g = graphs[i]
-            if has_proj:
-                proj_matrix[i, :nnodes[i], :nnodes[i]] = g.proj_matrix.reshape(nnodes[i], nnodes[i])
-            else:
-                nulls = g.nulls.reshape(nnodes[i], -1)
-                proj_matrix[i, :nnodes[i], :nulls.shape[1]] = nulls
-        if not has_proj:
-            proj_matrix = proj_matrix.to(device, non_blocking=True)
-            proj_matrix = torch.einsum('bmf,bnf->bmn', proj_matrix, proj_matrix)
+            nulls = g.nulls.reshape(nnodes[i], num_eigs[i])
+            proj_matrix[i, :nnodes[i], :num_eigs[i]] = nulls
 
     new_batch = Batch.from_data_list(graphs,
                                      exclude_keys=['A_row', 'A_col', 'A_val', 'x',

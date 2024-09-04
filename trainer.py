@@ -219,3 +219,92 @@ class IPMTrainer:
         obj_gap = np.concatenate(obj_gap, axis=0)
         cons_gap = np.concatenate(cons_gap, axis=0)
         return obj_gap, cons_gap
+
+
+class PDLPTrainer:
+    def __init__(self, loss_type):
+        self.best_val_objgap = 100.
+        self.best_val_consgap = 100.
+        self.patience = 0
+
+        if loss_type == 'l2':
+            self.loss_func = lambda x: x ** 2
+        elif loss_type == 'l1':
+            self.loss_func = lambda x: x.abs()
+        else:
+            raise ValueError
+
+    def train(self, dataloader, model, optimizer):
+        model.train()
+        optimizer.zero_grad()
+
+        train_losses = 0.
+        num_graphs = 0
+        for i, data in enumerate(dataloader):
+            data = data.to(device)
+            optimizer.zero_grad()
+            primals, duals = model(data)
+            loss = self.get_loss(primals, duals, data)
+
+            train_losses += loss.detach() * data.num_graphs
+            num_graphs += data.num_graphs
+
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(),
+                                           max_norm=1.0,
+                                           error_if_nonfinite=True)
+            optimizer.step()
+
+        return train_losses.item() / num_graphs
+
+    def get_loss(self, primals, duals, data):
+        loss = (self.loss_func(primals - data.primal_solution).mean() +
+                self.loss_func(duals - data.dual_solution).mean())
+        return loss
+
+    def get_constraint_violation(self, vals, data):
+        """
+        Ax - b
+
+        :param vals:
+        :param data:
+        :return:
+        """
+        edge_index = data['cons', 'to', 'vals'].edge_index
+        Ax = scatter(vals[edge_index[1]] * data['cons', 'to', 'vals'].edge_attr.squeeze(), edge_index[0], reduce='sum', dim=0)
+        constraint_gap = Ax - data.b[:, None]
+        constraint_gap = torch.abs(constraint_gap)
+        return constraint_gap
+
+    def get_obj_metric(self, data, pred, hard_non_negative=False):
+        # if hard_non_negative, we need a relu to make x all non-negative
+        # just for metric usage, not for training
+        if hard_non_negative:
+            pred = torch.relu(pred)
+        c_times_x = data.c * pred
+        obj_pred = scatter(c_times_x, data['vals'].batch, dim=0, reduce='sum')
+        obj_gt = data.obj_solution
+        return (obj_pred - obj_gt) / obj_gt
+
+    @torch.no_grad()
+    def eval_metrics(self, dataloader, model):
+        """
+        both obj and constraint gap
+
+        :param dataloader:
+        :param model:
+        :return:
+        """
+        model.eval()
+
+        cons_gap = []
+        obj_gap = []
+        for i, data in enumerate(dataloader):
+            data = data.to(device)
+            vals, _ = model(data)
+            cons_gap.append(np.abs(self.get_constraint_violation(vals, data).detach().cpu().numpy()))
+            obj_gap.append(np.abs(self.get_obj_metric(data, vals, hard_non_negative=True).detach().cpu().numpy()))
+
+        obj_gap = np.concatenate(obj_gap, axis=0).mean()
+        cons_gap = np.concatenate(cons_gap, axis=0).mean()
+        return obj_gap, cons_gap

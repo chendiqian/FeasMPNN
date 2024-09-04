@@ -6,17 +6,14 @@ from torch_geometric.nn import GCNConv
 
 def build_adj_left_from_right(edge_index: torch.Tensor, edge_weight: torch.Tensor, n_node_left: int, n_node_right: int):
     # Create a sparse matrix in COO (Coordinate) format
-    indices = edge_index.t()
     values = edge_weight
     shape = (n_node_left, n_node_right)
-
     # Use torch.sparse_coo_tensor instead of sp.FloatTensor
-    adj_coo = torch.sparse_coo_tensor(indices, values, torch.Size(shape))
+    adj_coo = torch.sparse_coo_tensor(edge_index, values, torch.Size(shape))
 
     # Convert COO sparse matrix to CSR (Compressed Sparse Row) format
     adj_csr = adj_coo.coalesce()
-    #     print(dir(adj_csr._values()))
-    #     print(adj_csr._values().sum(dim=1).shape)
+
     # Normalize rows of the adjacency matrix in GCN style
     row_sum = adj_csr._values().sum(dim=-1)
     #     row_sum = torch.max(adj_csr._values())
@@ -35,32 +32,8 @@ def build_adj_left_from_right(edge_index: torch.Tensor, edge_weight: torch.Tenso
 
 
 def build_adj_right_from_left(edge_index: torch.Tensor, edge_weight: torch.Tensor, n_node_left: int, n_node_right: int):
-    # Create a sparse matrix in COO (Coordinate) format
-    indices = edge_index.t()
-    values = edge_weight
-    shape = (n_node_right, n_node_left)
-
-    # Use torch.sparse_coo_tensor instead of sp.FloatTensor
-    adj_coo = torch.sparse_coo_tensor(indices, values, torch.Size(shape))
-
-    # Convert COO sparse matrix to CSR (Compressed Sparse Row) format
-    adj_csr = adj_coo.coalesce()
-
-    # Normalize rows of the adjacency matrix in GCN style
-    row_sum = adj_csr._values().sum(dim=-1)
-    #     row_sum = torch.max(adj_csr._values())
-    row_sum = torch.clamp(row_sum, min=1)  # Avoid division by zero
-    #     row_sum = torch.sqrt(row_sum)
-    row_norm = 1.0 / row_sum
-    row_norm = row_norm.unsqueeze(-1)
-
-    # Reconstruct sparse matrix after normalization
-    adj_csr = torch.sparse_coo_tensor(adj_csr._indices(), adj_csr._values() * row_norm, adj_csr.shape)
-
-    # Move the sparse matrix to GPU if edge_index is on GPU
-    adj_csr = adj_csr.cuda() if edge_index.is_cuda else adj_csr
-
-    return adj_csr, row_norm
+    adj_csr, row_norm = build_adj_left_from_right(edge_index, edge_weight, n_node_left, n_node_right)
+    return adj_csr.t(), row_norm
 
 
 class BipartiteGraphConvolution(nn.Module):
@@ -102,19 +75,19 @@ class BipartiteGraphConvolution(nn.Module):
 
 
 class PDHGNet(nn.Module):
-    def __init__(self, emb_size, nConsF, nVarF, num_layers):
+    def __init__(self, conv, emb_size, num_layers):
         super(PDHGNet, self).__init__()
+
+        assert conv == 'gcnconv'
 
         self.activation = nn.ReLU()
         self.cons_embedding = nn.Sequential(
-            nn.Linear(in_features=nConsF, out_features=emb_size, bias=True),
+            nn.Linear(in_features=1, out_features=emb_size, bias=True),
             nn.ReLU()
         )
 
-        self.edge_embedding = nn.Sequential()
-
         self.var_embedding = nn.Sequential(
-            nn.Linear(in_features=nVarF, out_features=emb_size, bias=True),
+            nn.Linear(in_features=1, out_features=emb_size, bias=True),
             nn.ReLU()
         )
 
@@ -142,11 +115,15 @@ class PDHGNet(nn.Module):
             nn.Linear(in_features=emb_size, out_features=1, bias=False)
         )
 
-    def forward(self, constraint_features, edge_indices, edge_features, variable_features, c, b):
-        final_features = 0
+    def forward(self, data):
+        constraint_features = data.b[:, None]
+        edge_indices = data.edge_index_dict['cons', 'to', 'vals']
+        edge_features = data.edge_attr_dict['cons', 'to', 'vals'].squeeze()
+        variable_features = data.c[:, None]
+        c = data.c[:, None]
+        b = data.b[:, None]
 
         constraint_features = self.cons_embedding(constraint_features)
-        edge_features = self.edge_embedding(edge_features)
         variable_features = self.var_embedding(variable_features)
         for count in range(self.num_layers):
             variable_features_k = variable_features
@@ -160,4 +137,4 @@ class PDHGNet(nn.Module):
 
         output1 = self.output_module1(variable_features)
         output2 = self.output_module2(constraint_features)
-        return output1, output2
+        return output1.squeeze(), output2.squeeze()

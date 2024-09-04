@@ -20,7 +20,7 @@ class LogEncoder(torch.nn.Module):
         self.bias = bias
 
     def forward(self, x):
-        return torch.log(1. / (x + self.bias))
+        return torch.log(x + self.bias)
 
 
 class PowerEncoder:

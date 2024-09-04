@@ -24,6 +24,7 @@ class BipartiteIPMGNN(BipartiteHeteroGNN):
                          hid_pred,
                          num_mlp_layers,
                          norm,
+                         False,
                          False, False)
 
         self.predictor = torch.nn.ModuleList()

@@ -36,8 +36,6 @@ def args_parser():
     parser.add_argument('--epoch', type=int, default=1000)
     parser.add_argument('--patience', type=int, default=300)
     parser.add_argument('--batchsize', type=int, default=32)
-    parser.add_argument('--coeff_l2', type=float, default=0.1, help='balance between L2loss and cos loss')
-    parser.add_argument('--coeff_cos', type=float, default=1., help='balance between L2loss and cos loss')
 
     # model related
     parser.add_argument('--eval_every', type=int, default=1)

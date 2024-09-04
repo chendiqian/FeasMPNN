@@ -8,6 +8,7 @@ from models.gcn2conv import GCN2Conv
 from models.gatconv import GATv2Conv
 from models.sgcnconv import SGCNConv
 from models.hetero_conv import BipartiteConv
+from models.nn_utils import LogEncoder
 
 
 def get_conv_layer(conv: str,
@@ -66,13 +67,23 @@ class BipartiteHeteroGNN(torch.nn.Module):
                  hid_pred,
                  num_mlp_layers,
                  norm,
+                 plain_xstarts=False,
                  share_convs=False,
                  encode_start_x=True):
         super().__init__()
 
+        self.plain_xstarts = plain_xstarts
         self.num_layers = num_conv_layers
         self.b_encoder = MLP([1, hid_dim, hid_dim], norm=None)
-        self.start_pos_encoder = MLP([1, hid_dim, hid_dim], norm=None) if encode_start_x else None
+        if encode_start_x:
+            self.start_pos_encoder = MLP([1, hid_dim, hid_dim], norm=None)
+            if not plain_xstarts:
+                self.start_pos_encoder = torch.nn.Sequential(
+                    LogEncoder(),
+                    self.start_pos_encoder
+                )
+        else:
+            self.start_pos_encoder = None
         self.obj_encoder = MLP([1, hid_dim, hid_dim], norm=None)
 
         self.gcns = torch.nn.ModuleList()
@@ -94,7 +105,7 @@ class BipartiteHeteroGNN(torch.nn.Module):
         v2c_edge_attr: torch.FloatTensor = data['vals', 'to', 'cons'].edge_attr
 
         cons_embedding = self.b_encoder(data.b[:, None])
-        vals_embedding = self.start_pos_encoder(torch.log(x_start[:, None] + 1.e-8)) + self.obj_encoder(data.c[:, None])
+        vals_embedding = self.start_pos_encoder(x_start[:, None]) + self.obj_encoder(data.c[:, None])
 
         edge_norms = data.norm if hasattr(data, 'norm') else None
 

@@ -45,6 +45,7 @@ def args_parser():
     parser.add_argument('--ipm_eval_steps', type=int, default=64)
     parser.add_argument('--tau', type=float, default=0.01)
     parser.add_argument('--tau_scale', type=float, default=0.5)
+    parser.add_argument('--plain_xstarts', default=False, action='store_true')
     parser.add_argument('--eval_every', type=int, default=1)
     parser.add_argument('--conv', type=str, default='gcnconv')
     parser.add_argument('--heads', type=int, default=1, help='for GAT only')
@@ -103,7 +104,8 @@ if __name__ == '__main__':
                                  num_pred_layers=args.num_pred_layers,
                                  hid_pred=args.hid_pred,
                                  num_mlp_layers=args.num_mlp_layers,
-                                 norm=args.norm)
+                                 norm=args.norm,
+                                 plain_xstarts=args.plain_xstarts)
         model = CycleGNN(args.ipm_train_steps, args.ipm_eval_steps, gnn, args.tau, args.tau_scale).to(device)
         best_model = copy.deepcopy(model.state_dict())
 

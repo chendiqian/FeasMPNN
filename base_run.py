@@ -54,6 +54,10 @@ def args_parser():
 
 
 if __name__ == '__main__':
+
+    raise ValueError
+    # todo: add its own trainer
+
     args = args_parser()
     log_folder_name = save_run_config(args)
 

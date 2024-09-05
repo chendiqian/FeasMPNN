@@ -64,7 +64,7 @@ class CycleGNN(torch.nn.Module):
         return pred_list, label_list
 
     @torch.no_grad()
-    def evaluation(self, data, return_intern=False):
+    def evaluation(self, data):
         # reset
         obj_gaps = []
         time_steps = []
@@ -83,8 +83,7 @@ class CycleGNN(torch.nn.Module):
             x_starts.append(x_start)
 
             # prediction
-            if return_intern:
-                t_start = sync_timer()
+            t_start = sync_timer()
 
             pred = self.gnn(data, x_start)
             pred = batch_l1_normalize(pred, vals_batch)
@@ -104,21 +103,18 @@ class CycleGNN(torch.nn.Module):
             alpha = batch_line_search(x_start, pred, vals_batch, self.step_alpha) * 0.995
             # update
             x_start = x_start + alpha * pred
-            if return_intern:
-                t_end = sync_timer()
+            t_end = sync_timer()
             current_batched_x, _ = to_dense_batch(x_start, vals_batch)  # batchsize x max_nnodes
             current_obj = (current_batched_x * batched_c).sum(1)
             better_mask = current_obj < current_best_obj
             current_best_obj = torch.where(better_mask, current_obj, current_best_obj)
             current_best_batched_x = torch.where(better_mask[:, None], current_batched_x, current_best_batched_x)
-            if return_intern:
-                obj_gaps.append(current_best_obj)
-                time_steps.append(t_end - t_start)
+            obj_gaps.append(current_best_obj)
+            time_steps.append(t_end - t_start)
 
-        if obj_gaps:
-            obj_gaps = torch.stack(obj_gaps, dim=1)   # batchsize x steps
-            obj_gaps = torch.abs((opt_obj[:, None] - obj_gaps) / opt_obj[:, None]).cpu().numpy()
-            time_steps = np.cumsum(time_steps, axis=0)
+        obj_gaps = torch.stack(obj_gaps, dim=1)   # batchsize x steps
+        obj_gaps = torch.abs((opt_obj[:, None] - obj_gaps) / opt_obj[:, None]).cpu().numpy()
+        time_steps = np.cumsum(time_steps, axis=0)
 
         x_starts = torch.stack(x_starts, 1)  # nnodes x step
         preds = torch.stack(preds, 1)  # nnodes x step

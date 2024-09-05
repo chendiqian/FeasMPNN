@@ -98,7 +98,7 @@ if __name__ == '__main__':
         pbar = tqdm(dataloader)
         for data in pbar:
             data = data.to(device)
-            final_x, best_obj, obj_gaps, time_stamps, cos_sims = model.evaluation(data, True)
+            final_x, best_obj, obj_gaps, time_stamps, cos_sims = model.evaluation(data)
             gnn_timsteps.append(time_stamps)
             gnn_times.append(time_stamps[-1])
             # gnn_objgaps.append(obj_gaps)

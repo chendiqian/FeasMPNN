@@ -61,8 +61,12 @@ class Trainer:
     def eval(self, data_batch, model):
         model.eval()
         data_batch = data_batch.to(device)
-        _, obj_gap, _, _, _ = model.evaluation(data_batch)
-        return obj_gap.mean().item()
+        _, best_obj_gap, obj_gaps, _, _ = model.evaluation(data_batch)
+        _, steps = obj_gaps.shape
+        quarter_objgap = obj_gaps[:, steps // 4].mean()
+        half_objgap = obj_gaps[:, steps // 2].mean()
+        last_objgap = obj_gaps[:, -1].mean()
+        return quarter_objgap, half_objgap, last_objgap
 
     def get_loss(self, pred, label, batch):
         loss = self.loss_func(pred - label)  # nnodes x layers

@@ -37,6 +37,7 @@ def args_parser():
     parser.add_argument('--epoch', type=int, default=1000)
     parser.add_argument('--patience', type=int, default=300)
     parser.add_argument('--batchsize', type=int, default=32)
+    parser.add_argument('--microbatch', type=int, default=1)
     parser.add_argument('--coeff_l2', type=float, default=0.1, help='balance between L2loss and cos loss')
     parser.add_argument('--coeff_cos', type=float, default=1., help='balance between L2loss and cos loss')
 
@@ -112,7 +113,7 @@ if __name__ == '__main__':
                                                          patience=70 // args.eval_every,
                                                          min_lr=1.e-5)
 
-        trainer = Trainer(args.losstype, args.coeff_l2, args.coeff_cos)
+        trainer = Trainer(args.losstype, args.microbatch, args.coeff_l2, args.coeff_cos)
 
         pbar = tqdm(range(args.epoch))
         for epoch in pbar:

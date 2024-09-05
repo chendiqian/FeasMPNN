@@ -10,6 +10,7 @@ cos_metric = torch.nn.CosineEmbeddingLoss(reduction='none')
 class Trainer:
     def __init__(self,
                  loss_type,
+                 microbatch,
                  coeff_l2,
                  coeff_cos,
                  ):
@@ -28,6 +29,7 @@ class Trainer:
             raise ValueError
         self.coeff_l2 = coeff_l2
         self.coeff_cos = coeff_cos
+        self.microbatch = microbatch
 
     def train(self, dataloader, model, optimizer):
         model.train()
@@ -38,7 +40,6 @@ class Trainer:
         num_graphs = 0
         for i, data in enumerate(dataloader):
             data = data.to(device)
-            optimizer.zero_grad()
 
             pred, label = model(data)  # nnodes x steps
             loss = self.get_loss(pred, label, data['vals'].batch)
@@ -49,11 +50,13 @@ class Trainer:
             num_graphs += data.num_graphs
 
             # use both L2 loss and Cos similarity loss
-            # todo: bias the late game
             loss = self.coeff_l2 * loss + self.coeff_cos * cos_sim.mean()
+            loss = loss / self.microbatch
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, error_if_nonfinite=True)
-            optimizer.step()
+            if (i + 1) % self.microbatch == 0 or (i + 1) == len(dataloader):
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, error_if_nonfinite=True)
+                optimizer.step()
+                optimizer.zero_grad()
 
         return (train_losses / num_graphs).item(), (cos_sims / num_graphs).cpu().tolist()
 

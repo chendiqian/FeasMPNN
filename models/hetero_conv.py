@@ -1,49 +1,52 @@
-from typing import Tuple, Optional
 import inspect
+from typing import Dict
+from typing import Optional
 
 import torch
-from torch import Tensor
+from torch_geometric.typing import EdgeType, NodeType
 
 
-class BipartiteConv(torch.nn.Module):
+class TripartiteConv(torch.nn.Module):
     def __init__(
             self,
+            v2h_conv: torch.nn.Module,
+            h2v_conv: torch.nn.Module,
             v2c_conv: torch.nn.Module,
-            c2v_conv: Optional[torch.nn.Module],
+            c2v_conv: torch.nn.Module,
     ):
         super().__init__()
-        self.v2c_conv = v2c_conv
-        if c2v_conv is not None:
-            self.c2v_conv = c2v_conv
-        else:
-            self.c2v_conv = v2c_conv
+
+        self.convs = torch.nn.ModuleDict(
+            {'vals_hids': v2h_conv,
+             'hids_vals': h2v_conv,
+             'vals_cons': v2c_conv,
+             'cons_vals': c2v_conv}
+        )
+        self.has_skip = 'x_0' in inspect.signature(v2c_conv.forward).parameters.keys()
 
     def forward(
             self,
-            cons_embedding: torch.FloatTensor,
-            vals_embedding: torch.FloatTensor,
-            cons_embedding_0: torch.FloatTensor,
-            vals_embedding_0: torch.FloatTensor,
-            v2c_edge_index: torch.LongTensor,
-            c2v_edge_index: torch.LongTensor,
-            v2c_edge_attr: torch.FloatTensor,
-            c2v_edge_attr: torch.FloatTensor,
-            cons_batch: torch.LongTensor,
-            vals_batch: torch.LongTensor,
-            edge_norm: Optional[torch.FloatTensor]) -> Tuple[Tensor, Tensor]:
+            x_dict: Dict[NodeType, torch.FloatTensor],
+            x0_dict: Dict[NodeType, torch.FloatTensor],
+            batch_dict: Dict[NodeType, torch.LongTensor],
+            edge_index_dict: Dict[EdgeType, torch.LongTensor],
+            edge_attr_dict: Dict[EdgeType, torch.FloatTensor],
+            norm_dict: Dict[EdgeType, Optional[torch.FloatTensor]]
+    ) -> Dict[NodeType, torch.FloatTensor]:
 
-        has_skip = 'x_0' in inspect.signature(self.v2c_conv.forward).parameters.keys()
+        for src, rel, dst in [('vals', 'to', 'hids'),
+                              ('hids', 'to', 'vals'),
+                              ('vals', 'to', 'cons'),
+                              ('cons', 'to', 'vals')]:
+            args = [(x_dict[src], x_dict[dst])]
+            if self.has_skip:
+                args.append(x0_dict[dst])
+            args = args + [edge_index_dict[(src, rel, dst)],
+                           edge_attr_dict[(src, rel, dst)],
+                           batch_dict[dst]]
+            if norm_dict[(src, rel, dst)] is not None:
+                args.append(norm_dict[(src, rel, dst)])
 
-        # update cons first
-        args = [(vals_embedding, cons_embedding)] + \
-               ([cons_embedding_0] if has_skip else []) + \
-               [v2c_edge_index, v2c_edge_attr, cons_batch] + \
-               ([edge_norm] if edge_norm is not None else [])
-        cons_embedding = self.v2c_conv(*args)
+            x_dict[dst] = self.convs['_'.join([src, dst])](*args)
 
-        args = [(cons_embedding, vals_embedding)] + \
-               ([vals_embedding_0] if has_skip else []) + \
-               [c2v_edge_index, c2v_edge_attr, vals_batch] + \
-               ([edge_norm] if edge_norm is not None else [])
-        vals_embedding = self.c2v_conv(*args)
-        return vals_embedding, cons_embedding
+        return x_dict

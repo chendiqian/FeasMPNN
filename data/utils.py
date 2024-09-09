@@ -70,3 +70,9 @@ def project_solution(pred, A, b):
     proj = solve_qp(P, q, G, h, Amatrix, bias.astype(np.float64), solver="cvxopt")
     pred = pred + proj
     return pred
+
+
+def qp_obj(x, S, q, batch):
+    part = S * x[:, None]
+    Q = part @ part.t()
+    return scatter(Q.sum(0) * 0.5 + q * x, batch, reduce='sum')

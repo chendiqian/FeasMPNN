@@ -11,14 +11,18 @@ class GCNNorm(BaseTransform):
         pass
 
     def forward(self, data: HeteroData) -> HeteroData:
-        edge_index = data[('cons', 'to', 'vals')].edge_index
-        row, col = edge_index
-        deg_src = degree(row, data['cons'].num_nodes, dtype=torch.float) + 1.
-        deg_src_inv_sqrt = deg_src.pow(-0.5)
-        deg_src_inv_sqrt[deg_src_inv_sqrt == float('inf')] = 0
-        deg_dst = degree(col, data['vals'].num_nodes, dtype=torch.float) + 1.
-        deg_dst_inv_sqrt = deg_dst.pow(-0.5)
-        deg_dst_inv_sqrt[deg_dst_inv_sqrt == float('inf')] = 0
-        norm = deg_src_inv_sqrt[row] * deg_dst_inv_sqrt[col]
-        data.norm = norm
+        norm_dict = {}
+        for src, rel, dst in [('cons', 'to', 'vals'), ('vals', 'to', 'hids')]:
+            edge_index = data[(src, rel, dst)].edge_index
+            row, col = edge_index
+            deg_src = degree(row, data[src].num_nodes, dtype=torch.float) + 1.
+            deg_src_inv_sqrt = deg_src.pow(-0.5)
+            deg_src_inv_sqrt[deg_src_inv_sqrt == float('inf')] = 0
+            deg_dst = degree(col, data[dst].num_nodes, dtype=torch.float) + 1.
+            deg_dst_inv_sqrt = deg_dst.pow(-0.5)
+            deg_dst_inv_sqrt[deg_dst_inv_sqrt == float('inf')] = 0
+            norm = deg_src_inv_sqrt[row] * deg_dst_inv_sqrt[col]
+            norm_dict[(src, rel, dst)] = norm
+            norm_dict[(dst, rel, src)] = norm
+        data.norm_dict = norm_dict
         return data

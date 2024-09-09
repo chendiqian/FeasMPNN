@@ -1,6 +1,5 @@
 import os
 import argparse
-from functools import partial
 
 import copy
 import numpy as np
@@ -14,7 +13,7 @@ from data.dataset import LPDataset
 from data.collate_func import collate_fn_lp_bi
 from data.transforms import GCNNorm
 from data.prefetch_generator import BackgroundGenerator
-from models.hetero_gnn import BipartiteHeteroGNN
+from models.hetero_gnn import TripartiteHeteroGNN
 from models.cycle_model import CycleGNN
 from trainer import Trainer
 from data.utils import save_run_config
@@ -52,10 +51,11 @@ def args_parser():
     parser.add_argument('--heads', type=int, default=1, help='for GAT only')
     parser.add_argument('--concat', default=False, action='store_true', help='for GAT only')
     parser.add_argument('--hidden', type=int, default=128)
-    parser.add_argument('--num_conv_layers', type=int, default=6)
-    parser.add_argument('--num_pred_layers', type=int, default=2)
+    parser.add_argument('--num_encode_layers', type=int, default=2)
+    parser.add_argument('--num_conv_layers', type=int, default=8)
+    parser.add_argument('--num_pred_layers', type=int, default=3)
     parser.add_argument('--hid_pred', type=int, default=-1)
-    parser.add_argument('--num_mlp_layers', type=int, default=2, help='mlp layers within GENConv')
+    parser.add_argument('--num_mlp_layers', type=int, default=1)
     parser.add_argument('--norm', type=str, default='graphnorm')  # empirically better
 
     return parser.parse_args()
@@ -71,38 +71,38 @@ if __name__ == '__main__':
                config=vars(args),
                entity="chendiqian")  # use your own entity
 
-    dataset = LPDataset(args.datapath, transform=GCNNorm() if 'gcn' in args.conv else None)
+    dataset = LPDataset(args.datapath, transform=GCNNorm() if 'gcn' in args.conv else None)[:100]
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    collate_fn = partial(collate_fn_lp_bi, device=device)
     train_loader = DataLoader(dataset[:int(len(dataset) * 0.8)],
                               batch_size=args.batchsize,
                               shuffle=True,
-                              collate_fn=collate_fn)
+                              collate_fn=collate_fn_lp_bi)
     val_loader = DataLoader(dataset[int(len(dataset) * 0.8):int(len(dataset) * 0.9)],
                             batch_size=1000,
                             shuffle=False,
-                            collate_fn=collate_fn)
+                            collate_fn=collate_fn_lp_bi)
     val_batch = next(iter(val_loader))
     test_loader = DataLoader(dataset[int(len(dataset) * 0.9):],
                              batch_size=1000,
                              shuffle=False,
-                             collate_fn=collate_fn)
+                             collate_fn=collate_fn_lp_bi)
     test_batch = next(iter(test_loader))
 
     best_val_objgaps = []
     test_objgaps = []
 
     for run in range(args.runs):
-        gnn = BipartiteHeteroGNN(conv=args.conv,
-                                 head=args.heads,
-                                 concat=args.concat,
-                                 hid_dim=args.hidden,
-                                 num_conv_layers=args.num_conv_layers,
-                                 num_pred_layers=args.num_pred_layers,
-                                 hid_pred=args.hid_pred,
-                                 num_mlp_layers=args.num_mlp_layers,
-                                 norm=args.norm,
-                                 plain_xstarts=args.plain_xstarts)
+        gnn = TripartiteHeteroGNN(conv=args.conv,
+                                  head=args.heads,
+                                  concat=args.concat,
+                                  hid_dim=args.hidden,
+                                  num_encode_layers=args.num_encode_layers,
+                                  num_conv_layers=args.num_conv_layers,
+                                  num_pred_layers=args.num_pred_layers,
+                                  hid_pred=args.hid_pred,
+                                  num_mlp_layers=args.num_mlp_layers,
+                                  norm=args.norm,
+                                  plain_xstarts=args.plain_xstarts)
         model = CycleGNN(args.ipm_train_steps, args.ipm_eval_steps, gnn, args.tau, args.tau_scale).to(device)
         best_model = copy.deepcopy(model.state_dict())
 

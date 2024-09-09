@@ -1,13 +1,15 @@
+from typing import Dict, Optional
+
 import torch
 from torch_geometric.nn import MLP
+from torch_geometric.typing import EdgeType, NodeType
 
 from models.genconv import GENConv
 from models.gcnconv import GCNConv
 from models.ginconv import GINEConv
 from models.gcn2conv import GCN2Conv
 from models.gatconv import GATv2Conv
-from models.sgcnconv import SGCNConv
-from models.hetero_conv import BipartiteConv
+from models.hetero_conv import TripartiteConv
 from models.nn_utils import LogEncoder
 
 
@@ -42,9 +44,6 @@ def get_conv_layer(conv: str,
                         hid_dim=hid_dim,
                         num_mlp_layers=num_mlp_layers,
                         norm=norm)
-    elif conv.lower() == 'sgcnconv':
-        return SGCNConv(edge_dim=1,
-                        hid_dim=hid_dim)
     elif conv.lower() == 'gatconv':
         return GATv2Conv(edge_dim=1,
                          hid_dim=hid_dim,
@@ -56,27 +55,27 @@ def get_conv_layer(conv: str,
         raise NotImplementedError
 
 
-class BipartiteHeteroGNN(torch.nn.Module):
+class TripartiteHeteroGNN(torch.nn.Module):
     def __init__(self,
                  conv,
                  head,
                  concat,
                  hid_dim,
+                 num_encode_layers,
                  num_conv_layers,
                  num_pred_layers,
                  hid_pred,
                  num_mlp_layers,
                  norm,
                  plain_xstarts=False,
-                 share_convs=False,
                  encode_start_x=True):
         super().__init__()
 
         self.plain_xstarts = plain_xstarts
         self.num_layers = num_conv_layers
-        self.b_encoder = MLP([1, hid_dim, hid_dim], norm=None)
+        self.b_encoder = MLP([1] + [hid_dim] * num_encode_layers, norm=None)
         if encode_start_x:
-            self.start_pos_encoder = MLP([1, hid_dim, hid_dim], norm=None)
+            self.start_pos_encoder = MLP([1] + [hid_dim] * num_encode_layers, norm=None)
             if not plain_xstarts:
                 self.start_pos_encoder = torch.nn.Sequential(
                     LogEncoder(),
@@ -84,45 +83,40 @@ class BipartiteHeteroGNN(torch.nn.Module):
                 )
         else:
             self.start_pos_encoder = None
-        self.obj_encoder = MLP([1, hid_dim, hid_dim], norm=None)
+        self.q_encoder = MLP([1] + [hid_dim] * num_encode_layers, norm=None)
 
         self.gcns = torch.nn.ModuleList()
         for layer in range(num_conv_layers):
-            self.gcns.append(BipartiteConv(
+            self.gcns.append(TripartiteConv(
                 get_conv_layer(conv, hid_dim, num_mlp_layers, norm, head, concat),
-                get_conv_layer(conv, hid_dim, num_mlp_layers, norm, head, concat) if not share_convs else None
+                get_conv_layer(conv, hid_dim, num_mlp_layers, norm, head, concat),
+                get_conv_layer(conv, hid_dim, num_mlp_layers, norm, head, concat),
+                get_conv_layer(conv, hid_dim, num_mlp_layers, norm, head, concat),
             ))
         if hid_pred == -1:
             hid_pred = hid_dim
         self.predictor = MLP([hid_dim] + [hid_pred] * num_pred_layers + [1], norm=None)
 
     def forward(self, data, x_start):
-        vals_batch: torch.LongTensor = data['vals'].batch
-        cons_batch: torch.LongTensor = data['cons'].batch
-        c2v_edge_index: torch.LongTensor = data['cons', 'to', 'vals'].edge_index
-        v2c_edge_index: torch.LongTensor = data['vals', 'to', 'cons'].edge_index
-        c2v_edge_attr: torch.FloatTensor = data['cons', 'to', 'vals'].edge_attr
-        v2c_edge_attr: torch.FloatTensor = data['vals', 'to', 'cons'].edge_attr
+        batch_dict: Dict[NodeType, torch.LongTensor] = data.batch_dict
+        edge_index_dict: Dict[EdgeType, torch.LongTensor] = data.edge_index_dict
+        edge_attr_dict: Dict[EdgeType, torch.FloatTensor] = data.edge_attr_dict
+        norm_dict: Dict[EdgeType, Optional[torch.FloatTensor]] = data.norm_dict
 
         cons_embedding = self.b_encoder(data.b[:, None])
-        vals_embedding = self.start_pos_encoder(x_start[:, None]) + self.obj_encoder(data.c[:, None])
+        vals_embedding = self.start_pos_encoder(x_start[:, None]) + self.q_encoder(data.q[:, None])
+        hids_embedding = torch.zeros(data['hids'].num_nodes, cons_embedding.shape[1],
+                                     dtype=torch.float, device=x_start.device)
 
-        edge_norms = data.norm if hasattr(data, 'norm') else None
+        x_dict: Dict[NodeType, torch.FloatTensor] = {'vals': vals_embedding,
+                                                     'cons': cons_embedding,
+                                                     'hids': hids_embedding}
+        x0_dict: Dict[NodeType, torch.FloatTensor] = {'vals': vals_embedding,
+                                                      'cons': cons_embedding,
+                                                      'hids': hids_embedding}
 
-        cons_embedding_0 = cons_embedding
-        vals_embedding_0 = vals_embedding
         for i in range(self.num_layers):
-            vals_embedding, cons_embedding = self.gcns[i](cons_embedding,
-                                                          vals_embedding,
-                                                          cons_embedding_0,
-                                                          vals_embedding_0,
-                                                          v2c_edge_index,
-                                                          c2v_edge_index,
-                                                          v2c_edge_attr,
-                                                          c2v_edge_attr,
-                                                          cons_batch,
-                                                          vals_batch,
-                                                          edge_norms)
+            x_dict = self.gcns[i](x_dict, x0_dict, batch_dict, edge_index_dict, edge_attr_dict, norm_dict)
 
-        x = self.predictor(vals_embedding)
+        x = self.predictor(x_dict['vals'])
         return x.squeeze()

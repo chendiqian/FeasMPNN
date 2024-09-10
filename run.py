@@ -13,7 +13,7 @@ from data.dataset import LPDataset
 from data.collate_func import collate_fn_lp_bi
 from data.transforms import GCNNorm
 from data.prefetch_generator import BackgroundGenerator
-from models.hetero_gnn import TripartiteHeteroGNN
+from models.hetero_gnn import TripartiteHeteroGNN, BipartiteHeteroGNN
 from models.cycle_model import CycleGNN
 from trainer import Trainer
 from data.utils import save_run_config
@@ -92,7 +92,7 @@ if __name__ == '__main__':
     test_objgaps = []
 
     for run in range(args.runs):
-        gnn = TripartiteHeteroGNN(conv=args.conv,
+        gnn = BipartiteHeteroGNN(conv=args.conv,
                                   head=args.heads,
                                   concat=args.concat,
                                   hid_dim=args.hidden,

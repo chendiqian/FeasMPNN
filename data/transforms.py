@@ -12,7 +12,8 @@ class GCNNorm(BaseTransform):
 
     def forward(self, data: HeteroData) -> HeteroData:
         norm_dict = {}
-        for src, rel, dst in [('cons', 'to', 'vals'), ('vals', 'to', 'hids')]:
+        # for src, rel, dst in [('cons', 'to', 'vals'), ('vals', 'to', 'hids')]:
+        for src, rel, dst in [('cons', 'to', 'vals'), ('vals', 'to', 'vals')]:
             edge_index = data[(src, rel, dst)].edge_index
             row, col = edge_index
             deg_src = degree(row, data[src].num_nodes, dtype=torch.float) + 1.
@@ -23,6 +24,7 @@ class GCNNorm(BaseTransform):
             deg_dst_inv_sqrt[deg_dst_inv_sqrt == float('inf')] = 0
             norm = deg_src_inv_sqrt[row] * deg_dst_inv_sqrt[col]
             norm_dict[(src, rel, dst)] = norm
-            norm_dict[(dst, rel, src)] = norm
+            if src != dst:
+                norm_dict[(dst, rel, src)] = norm
         data.norm_dict = norm_dict
         return data

@@ -42,7 +42,7 @@ def args_parser():
 
     # model related
     parser.add_argument('--ipm_train_steps', type=int, default=8)
-    parser.add_argument('--ipm_eval_steps', type=int, default=64)
+    parser.add_argument('--ipm_eval_steps', type=int, default=32)
     parser.add_argument('--tau', type=float, default=0.01)
     parser.add_argument('--tau_scale', type=float, default=0.5)
     parser.add_argument('--plain_xstarts', default=False, action='store_true')

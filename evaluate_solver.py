@@ -1,16 +1,13 @@
 import argparse
-import time
 
-import cplex
 import numpy as np
 import wandb
-from ortools.linear_solver import pywraplp
 from torch_sparse import SparseTensor
 from tqdm import tqdm
 
 from data.dataset import LPDataset
 from data.utils import sync_timer
-from solver.linprog import linprog
+from qpsolvers import solve_qp
 
 
 def args_parser():
@@ -34,100 +31,32 @@ if __name__ == '__main__':
 
     dataset = LPDataset(args.datapath)[-1000:]
 
-    # cplex_times = []
-    sp_times = []
-    scip_times = []
+    cvxopt_time = []
 
     pbar = tqdm(dataset)
     for data in pbar:
-        c = data.c.numpy()
-        b = data.b.numpy()
+        q = data.q.numpy().astype(np.float64)
+        b = data.b.numpy().astype(np.float64)
         A = SparseTensor(row=data['cons', 'to', 'vals'].edge_index[0],
                          col=data['cons', 'to', 'vals'].edge_index[1],
                          value=data['cons', 'to', 'vals'].edge_attr.squeeze(),
-                         is_sorted=True, trust_data=True).to_dense().numpy()
-        # opt_obj = data.obj_solution.item()
+                         is_sorted=True, trust_data=True).to_dense().numpy().astype(np.float64)
+        P = SparseTensor(row=data['vals', 'to', 'vals'].edge_index[0],
+                         col=data['vals', 'to', 'vals'].edge_index[1],
+                         value=data['vals', 'to', 'vals'].edge_attr.squeeze(),
+                         is_sorted=True, trust_data=True).to_dense().numpy().astype(np.float64)
+        lb = np.zeros(A.shape[1]).astype(np.float64)
 
         # scipy
         start_t = sync_timer()
-        res = linprog(
-            c,
-            A_ub=None, b_ub=None,
-            A_eq=A, b_eq=b,
-            bounds=None, method='interior-point')
+        solution = solve_qp(P, q, None, None, A, b, lb=lb, solver="cvxopt")
         end_t = sync_timer()
-        x = res.x
-        obj = x.dot(c)
-        sp_times.append(end_t - start_t)
-        # sp_objgaps.append(np.abs((obj - opt_obj) / (opt_obj + 1.e-6)))
+        cvxopt_time.append(end_t - start_t)
 
-        # cplex
-        num_decision_var = A.shape[1]
-        num_constraints = A.shape[0]
+        wandb.log({'cvxopt': cvxopt_time[-1]})
+        pbar.set_postfix({'cvxopt': cvxopt_time[-1]})
 
-        A = A.tolist()
-        b = b.tolist()
-        c = c.tolist()
+    stat_dict = {"cvxopt_mean": np.mean(cvxopt_time),
+                 "cvxopt_std": np.std(cvxopt_time)}
 
-        # myProblem = cplex.Cplex()
-        #
-        # # Add the decision variables and set their lower bound and upper bound (if necessary)
-        # myProblem.variables.add(names=["x" + str(i) for i in range(num_decision_var)])
-        # for i in range(num_decision_var):
-        #     myProblem.variables.set_lower_bounds(i, 0.0)
-        #     myProblem.variables.set_upper_bounds(i, 1.0)
-        #
-        # # Add constraints
-        # for i in range(num_constraints):
-        #     myProblem.linear_constraints.add(
-        #         lin_expr=[cplex.SparsePair(ind=[j for j in range(num_decision_var)], val=A[i])],
-        #         rhs=[b[i]],
-        #         names=["c" + str(i)],
-        #         senses=["E"]
-        #     )
-        #
-        # # Add objective function and set its sense
-        # for i in range(num_decision_var):
-        #     myProblem.objective.set_linear([(i, c[i])])
-        # myProblem.objective.set_sense(myProblem.objective.sense.minimize)
-        #
-        # # Solve the model and print the answer
-        # t1 = time.time()
-        # myProblem.solve()
-        # t2 = time.time()
-        # x = myProblem.solution.get_values()
-        # obj = np.array(x).dot(np.array(c))
-        #
-        # cplex_times.append(end_t - start_t)
-        # cplex_objgaps.append(np.abs(obj - opt_obj) / (opt_obj + 1.e-6))
-
-        # ortools
-        solver = pywraplp.Solver.CreateSolver('SCIP')
-
-        x = [solver.NumVar(0, 1, f'x{i}') for i in range(num_decision_var)]
-
-        objective = solver.Objective()
-        for i in range(num_decision_var):
-            objective.SetCoefficient(x[i], c[i])
-        objective.SetMinimization()
-
-        for i in range(num_constraints):
-            solver.Add(sum([x[j] * A[i][j] for j in range(num_decision_var)]) == b[i])
-
-        t1 = time.time()
-        status = solver.Solve()
-        t2 = time.time()
-        scip_times.append(t2 - t1)
-        x = np.array([x[i].solution_value() for i in range(num_decision_var)])
-        wandb.log({'scipy': sp_times[-1], 'scip': scip_times[-1]})
-        pbar.set_postfix({'scipy': sp_times[-1], 'scip': scip_times[-1]})
-
-    stat_dict = {"scipy_mean": np.mean(sp_times),
-                 "scipy_std": np.std(sp_times),
-                 # "cplex_mean": np.mean(cplex_times),
-                 # "cplex_std": np.std(cplex_times),
-                 "scip_mean": np.mean(scip_times),
-                 "scip_std": np.std(scip_times)}
-
-    if args.use_wandb:
-        wandb.log(stat_dict)
+    wandb.log(stat_dict)

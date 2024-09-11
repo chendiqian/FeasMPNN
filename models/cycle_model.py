@@ -119,7 +119,7 @@ class CycleGNN(torch.nn.Module):
             time_steps.append(t_end - t_start)
 
         obj_gaps = torch.stack(obj_gaps, dim=1)   # batchsize x steps
-        obj_gaps = torch.abs((opt_obj[:, None] - obj_gaps) / opt_obj[:, None]).cpu().numpy()
+        obj_gaps = torch.abs((opt_obj[:, None] - obj_gaps) / opt_obj[:, None])
         time_steps = np.cumsum(time_steps, axis=0)
 
         x_starts = torch.stack(x_starts, 1)  # nnodes x step

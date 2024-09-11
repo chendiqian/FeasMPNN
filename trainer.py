@@ -75,8 +75,8 @@ class Trainer:
             halfs.append(half_objgap)
             lasts.append(last_objgap)
 
-        halfs = np.concatenate(halfs, axis=0).mean()
-        lasts = np.concatenate(lasts, axis=0).mean()
+        halfs = torch.cat(halfs, dim=0).mean().item()
+        lasts = torch.cat(lasts, dim=0).mean().item()
 
         return halfs, lasts
 
@@ -117,3 +117,56 @@ class Trainer:
                           data['cons'].num_nodes, data['vals'].num_nodes, pred).squeeze() - data.b
         violation = scatter(torch.abs(Ax_minus_b), data['cons'].batch, dim=0, reduce='mean')  # (batchsize,)
         return violation.cpu().numpy()
+
+
+class MultiGPUTrainer(Trainer):
+    def __init__(self,
+                 loss_type,
+                 microbatch,
+                 coeff_l2,
+                 coeff_cos,
+                 ):
+        super().__init__(loss_type, microbatch, coeff_l2, coeff_cos)
+
+    def train(self, dataloader, model, optimizer, local_device):
+        model.train()
+        optimizer.zero_grad()
+
+        train_losses = 0.
+        cos_sims = 0.
+        num_graphs = 0
+        for i, data in enumerate(dataloader):
+            data = data.to(local_device)
+
+            pred, label = model(data)  # nnodes x steps
+            loss = self.get_loss(pred, label, data['vals'].batch)
+            cos_sim = self.get_cos_sim(pred, label, data['vals'].batch)  # batchsize x steps
+
+            train_losses += loss.detach() * data.num_graphs
+            cos_sims = cos_sims + cos_sim.detach().sum(0)
+            num_graphs += data.num_graphs
+
+            # use both L2 loss and Cos similarity loss
+            loss = self.coeff_l2 * loss + self.coeff_cos * cos_sim.mean()
+            loss = loss / self.microbatch
+            loss.backward()
+            if (i + 1) % self.microbatch == 0 or (i + 1) == len(dataloader):
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, error_if_nonfinite=True)
+                optimizer.step()
+                optimizer.zero_grad()
+
+        return train_losses / num_graphs, cos_sims / num_graphs
+
+    @torch.no_grad()
+    def eval(self, dataloader, model, local_device):
+        model.eval()
+        lasts = []
+        for i, data in enumerate(dataloader):
+            data = data.to(local_device)
+            _, best_obj_gap, obj_gaps, _, _ = model.evaluation(data)
+            _, steps = obj_gaps.shape
+            last_objgap = obj_gaps[:, -1]
+            lasts.append(last_objgap)
+
+        lasts = torch.cat(lasts, dim=0).mean()
+        return lasts

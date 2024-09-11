@@ -36,6 +36,7 @@ def args_parser():
     parser.add_argument('--epoch', type=int, default=1000)
     parser.add_argument('--patience', type=int, default=300)
     parser.add_argument('--batchsize', type=int, default=32)
+    parser.add_argument('--val_batchsize', type=int, default=32)
     parser.add_argument('--microbatch', type=int, default=1)
     parser.add_argument('--coeff_l2', type=float, default=0.1, help='balance between L2loss and cos loss')
     parser.add_argument('--coeff_cos', type=float, default=1., help='balance between L2loss and cos loss')
@@ -78,15 +79,13 @@ if __name__ == '__main__':
                               shuffle=True,
                               collate_fn=collate_fn_lp_bi)
     val_loader = DataLoader(dataset[int(len(dataset) * 0.8):int(len(dataset) * 0.9)],
-                            batch_size=1000,
+                            batch_size=args.val_batchsize,
                             shuffle=False,
                             collate_fn=collate_fn_lp_bi)
-    val_batch = next(iter(val_loader))
     test_loader = DataLoader(dataset[int(len(dataset) * 0.9):],
-                             batch_size=1000,
+                             batch_size=args.val_batchsize,
                              shuffle=False,
                              collate_fn=collate_fn_lp_bi)
-    test_batch = next(iter(test_loader))
 
     best_val_objgaps = []
     test_objgaps = []
@@ -117,11 +116,11 @@ if __name__ == '__main__':
 
         pbar = tqdm(range(args.epoch))
         for epoch in pbar:
-            train_loss, train_cos_sims = trainer.train(BackgroundGenerator(train_loader, device, 4), model, optimizer)
-            stats_dict = {'train_loss': train_loss,
+            train_loss, train_cos_sims = trainer.train(BackgroundGenerator(train_loader, device, 2), model, optimizer)
+            stats_dict = {'train_loss': 0.,
                           'lr': scheduler.optimizer.param_groups[0]["lr"]}
             if epoch % args.eval_every == 0:
-                quarter_objgap, half_objgap, val_obj_gap = trainer.eval(val_batch, model)
+                half_objgap, val_obj_gap = trainer.eval(BackgroundGenerator(val_loader, device, 2), model)
                 if scheduler is not None:
                     scheduler.step(val_obj_gap)
 
@@ -138,7 +137,6 @@ if __name__ == '__main__':
                     break
 
                 stats_dict['val_obj_gap'] = val_obj_gap
-                stats_dict['1/4_obj_gap'] = quarter_objgap
                 stats_dict['1/2_obj_gap'] = half_objgap
 
             pbar.set_postfix(stats_dict)
@@ -149,7 +147,7 @@ if __name__ == '__main__':
         best_val_objgaps.append(trainer.best_objgap)
 
         model.load_state_dict(best_model)
-        _, _, test_obj_gap = trainer.eval(test_batch, model)
+        _, test_obj_gap = trainer.eval(BackgroundGenerator(test_loader, device, 4), model)
         test_objgaps.append(test_obj_gap)
         wandb.log({'test_obj_gap': test_obj_gap})
 

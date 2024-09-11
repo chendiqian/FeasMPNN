@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from torch_geometric.utils import to_dense_batch, scatter
 from torch_sparse import spmm
@@ -60,15 +61,24 @@ class Trainer:
         return (train_losses / num_graphs).item(), (cos_sims / num_graphs).cpu().tolist()
 
     @torch.no_grad()
-    def eval(self, data_batch, model):
+    def eval(self, dataloader, model):
         model.eval()
-        data_batch = data_batch.to(device)
-        _, best_obj_gap, obj_gaps, _, _ = model.evaluation(data_batch)
-        _, steps = obj_gaps.shape
-        quarter_objgap = obj_gaps[:, steps // 4].mean()
-        half_objgap = obj_gaps[:, steps // 2].mean()
-        last_objgap = obj_gaps[:, -1].mean()
-        return quarter_objgap, half_objgap, last_objgap
+
+        halfs = []
+        lasts = []
+        for i, data in enumerate(dataloader):
+            data = data.to(device)
+            _, best_obj_gap, obj_gaps, _, _ = model.evaluation(data)
+            _, steps = obj_gaps.shape
+            half_objgap = obj_gaps[:, steps // 2]
+            last_objgap = obj_gaps[:, -1]
+            halfs.append(half_objgap)
+            lasts.append(last_objgap)
+
+        halfs = np.concatenate(halfs, axis=0).mean()
+        lasts = np.concatenate(lasts, axis=0).mean()
+
+        return halfs, lasts
 
     def get_loss(self, pred, label, batch):
         loss = self.loss_func(pred - label)  # nnodes x layers

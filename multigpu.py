@@ -80,15 +80,19 @@ def run(rank, dataset, world_size, log_folder_name, args):
     val_sampler = DistributedSampler(val_set, num_replicas=world_size, rank=rank)
     test_sampler = DistributedSampler(test_set, num_replicas=world_size, rank=rank)
 
+    num_workers = 1
     train_loader = DataLoader(train_set,
+                              num_workers=num_workers,
                               batch_size=args.batchsize // world_size,
                               collate_fn=collate_fn_lp_bi,
                               sampler=train_sampler)
     val_loader = DataLoader(val_set,
+                            num_workers=num_workers,
                             batch_size=args.val_batchsize // world_size,
                             sampler=val_sampler,
                             collate_fn=collate_fn_lp_bi)
     test_loader = DataLoader(test_set,
+                             num_workers=num_workers,
                              batch_size=args.val_batchsize // world_size,
                              sampler=test_sampler,
                              collate_fn=collate_fn_lp_bi)

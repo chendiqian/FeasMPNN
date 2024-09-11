@@ -1,6 +1,5 @@
 import argparse
 import os
-from functools import partial
 
 import numpy as np
 import torch
@@ -20,7 +19,7 @@ def args_parser():
     parser = argparse.ArgumentParser(description='hyper params for training graph dataset')
     # admin
     parser.add_argument('--datapath', type=str, required=True)
-    parser.add_argument('--modelpath', type=str, required=True)
+    parser.add_argument('--modelpath', type=str, default=None)
     parser.add_argument('--wandbproject', type=str, default='default')
     parser.add_argument('--wandbname', type=str, default='')
     parser.add_argument('--use_wandb', default=False, action='store_true')
@@ -28,7 +27,7 @@ def args_parser():
 
     # model related
     parser.add_argument('--batchsize', type=int, default=1)
-    parser.add_argument('--ipm_eval_steps', type=int, default=64)
+    parser.add_argument('--ipm_eval_steps', type=int, default=32)
     parser.add_argument('--tau', type=float, default=0.01)
     parser.add_argument('--tau_scale', type=float, default=0.5)
     parser.add_argument('--plain_xstarts', default=False, action='store_true')
@@ -36,10 +35,11 @@ def args_parser():
     parser.add_argument('--heads', type=int, default=1, help='for GAT only')
     parser.add_argument('--concat', default=False, action='store_true', help='for GAT only')
     parser.add_argument('--hidden', type=int, default=128)
-    parser.add_argument('--num_conv_layers', type=int, default=6)
-    parser.add_argument('--num_pred_layers', type=int, default=2)
+    parser.add_argument('--num_encode_layers', type=int, default=2)
+    parser.add_argument('--num_conv_layers', type=int, default=8)
+    parser.add_argument('--num_pred_layers', type=int, default=3)
     parser.add_argument('--hid_pred', type=int, default=-1)
-    parser.add_argument('--num_mlp_layers', type=int, default=2, help='mlp layers within GENConv')
+    parser.add_argument('--num_mlp_layers', type=int, default=1)
     parser.add_argument('--norm', type=str, default='graphnorm')  # empirically better
 
     return parser.parse_args()
@@ -57,11 +57,10 @@ if __name__ == '__main__':
     dataset = LPDataset(args.datapath, transform=GCNNorm() if 'gcn' in args.conv else None)[-1000:]
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    collate_fn = partial(collate_fn_lp_bi, device=device)
     dataloader = DataLoader(dataset,
                             batch_size=args.batchsize,
                             shuffle=False,
-                            collate_fn=collate_fn)
+                            collate_fn=collate_fn_lp_bi)
 
     gnn_objgaps = []
     best_gnn_obj = []
@@ -74,6 +73,7 @@ if __name__ == '__main__':
                              head=args.heads,
                              concat=args.concat,
                              hid_dim=args.hidden,
+                             num_encode_layers=args.num_encode_layers,
                              num_conv_layers=args.num_conv_layers,
                              num_pred_layers=args.num_pred_layers,
                              hid_pred=args.hid_pred,
@@ -89,8 +89,13 @@ if __name__ == '__main__':
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    for ckpt in [n for n in os.listdir(args.modelpath) if n.endswith('.pt')]:
-        model.load_state_dict(torch.load(os.path.join(args.modelpath, ckpt), map_location=device))
+    if args.modelpath is not None:
+        model_list = [n for n in os.listdir(args.modelpath) if n.endswith('.pt')]
+    else:
+        model_list = [None]
+    for ckpt in model_list:
+        if ckpt is not None:
+            model.load_state_dict(torch.load(os.path.join(args.modelpath, ckpt), map_location=device))
         model.eval()
 
         gaps = []
@@ -105,7 +110,10 @@ if __name__ == '__main__':
             best_obj = best_obj.cpu().numpy()
             gaps.append(best_obj)
             vios.append(Trainer.violate_per_batch(final_x[:, None], data))
-            pbar.set_postfix({'gap': best_obj.mean()})
+
+            stat_dict = {'gap': best_obj.mean(), 'time': gnn_times[-1], 'vio': vios[-1]}
+            pbar.set_postfix(stat_dict)
+            wandb.log(stat_dict)
         gaps = np.concatenate(gaps, axis=0)
         vios = np.concatenate(vios)
         best_gnn_obj.append(np.mean(gaps))

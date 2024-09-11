@@ -117,7 +117,7 @@ if __name__ == '__main__':
         pbar = tqdm(range(args.epoch))
         for epoch in pbar:
             train_loss, train_cos_sims = trainer.train(BackgroundGenerator(train_loader, device, 2), model, optimizer)
-            stats_dict = {'train_loss': 0.,
+            stats_dict = {'train_loss': train_loss,
                           'lr': scheduler.optimizer.param_groups[0]["lr"]}
             if epoch % args.eval_every == 0:
                 half_objgap, val_obj_gap = trainer.eval(BackgroundGenerator(val_loader, device, 2), model)

@@ -32,6 +32,7 @@ if __name__ == '__main__':
     dataset = LPDataset(args.datapath)[-1000:]
 
     cvxopt_time = []
+    osqp_time = []
 
     pbar = tqdm(dataset)
     for data in pbar:
@@ -47,16 +48,25 @@ if __name__ == '__main__':
                          is_sorted=True, trust_data=True).to_dense().numpy().astype(np.float64)
         lb = np.zeros(A.shape[1]).astype(np.float64)
 
-        # scipy
         start_t = sync_timer()
         solution = solve_qp(P, q, None, None, A, b, lb=lb, solver="cvxopt")
         end_t = sync_timer()
         cvxopt_time.append(end_t - start_t)
 
-        wandb.log({'cvxopt': cvxopt_time[-1]})
-        pbar.set_postfix({'cvxopt': cvxopt_time[-1]})
+        start_t = sync_timer()
+        solution = solve_qp(P, q, None, None, A, b, lb=lb, solver="osqp")
+        end_t = sync_timer()
+        osqp_time.append(end_t - start_t)
+
+        stat_dict = {'cvxopt': cvxopt_time[-1],
+                     'osqp': osqp_time[-1]}
+
+        wandb.log(stat_dict)
+        pbar.set_postfix(stat_dict)
 
     stat_dict = {"cvxopt_mean": np.mean(cvxopt_time),
-                 "cvxopt_std": np.std(cvxopt_time)}
+                 "cvxopt_std": np.std(cvxopt_time),
+                 "osqp_mean": np.mean(osqp_time),
+                 "osqp_std": np.std(osqp_time)}
 
     wandb.log(stat_dict)

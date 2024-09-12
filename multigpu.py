@@ -6,7 +6,6 @@ import copy
 import numpy as np
 import torch
 import torch.distributed as dist
-import torch.multiprocessing as mp
 from torch import optim
 from torch.utils.data import DataLoader
 from torch.nn.parallel import DistributedDataParallel
@@ -69,10 +68,13 @@ def args_parser():
     return parser.parse_args()
 
 
-def run(rank, dataset, world_size, log_folder_name, args):
-    os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = "12355"
-    dist.init_process_group("nccl", rank=rank, world_size=world_size)
+def run(rank, local_rank, world_size, args):
+    dist.init_process_group(backend="nccl")
+
+    if rank == 0:
+        log_folder_name = save_run_config(args)
+
+    dataset = LPDataset(args.datapath, transform=GCNNorm() if 'gcn' in args.conv else None)
 
     train_set = dataset[:int(len(dataset) * 0.8)]
     val_set = dataset[int(len(dataset) * 0.8): int(len(dataset) * 0.9)]
@@ -108,7 +110,7 @@ def run(rank, dataset, world_size, log_folder_name, args):
         best_val_objgaps = []
         test_objgaps = []
 
-    torch.cuda.set_device(rank)
+    torch.cuda.set_device(local_rank)
     for run in range(args.runs):
         torch.cuda.empty_cache()
         dist.barrier()
@@ -128,8 +130,8 @@ def run(rank, dataset, world_size, log_folder_name, args):
                          args.train_frac,
                          args.ipm_eval_steps,
                          gnn,
-                         args.tau, args.tau_scale).to(rank)
-        model = DistributedDataParallel(model, device_ids=[rank])
+                         args.tau, args.tau_scale).to(local_rank)
+        model = DistributedDataParallel(model, device_ids=[local_rank])
         best_model = copy.deepcopy(model.state_dict())
 
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
@@ -143,7 +145,7 @@ def run(rank, dataset, world_size, log_folder_name, args):
 
         for epoch in range(args.epoch):
             train_sampler.set_epoch(epoch)
-            train_loss, train_cos_sims = trainer.train(train_loader, model, optimizer, rank)
+            train_loss, train_cos_sims = trainer.train(train_loader, model, optimizer, local_rank)
 
             dist.all_reduce(train_loss, op=dist.ReduceOp.AVG)
             dist.all_reduce(train_cos_sims, op=dist.ReduceOp.AVG)
@@ -156,7 +158,7 @@ def run(rank, dataset, world_size, log_folder_name, args):
                               'lr': scheduler.optimizer.param_groups[0]["lr"]}
 
             if epoch % args.eval_every == 0:
-                val_obj_gap = trainer.eval(val_loader, model.module, rank)
+                val_obj_gap = trainer.eval(val_loader, model.module, local_rank)
                 dist.all_reduce(val_obj_gap, op=dist.ReduceOp.AVG)
                 val_obj_gap = val_obj_gap.item()
 
@@ -167,7 +169,7 @@ def run(rank, dataset, world_size, log_folder_name, args):
                     trainer.patience = 0
                     trainer.best_objgap = val_obj_gap
                     best_model = copy.deepcopy(model.state_dict())
-                    if args.ckpt:
+                    if args.ckpt and rank == 0:
                         torch.save(model.module.state_dict(), os.path.join(log_folder_name, f'best_model{run}.pt'))
                 else:
                     trainer.patience += 1
@@ -185,7 +187,7 @@ def run(rank, dataset, world_size, log_folder_name, args):
 
         dist.barrier()
         model.load_state_dict(best_model)
-        test_obj_gap = trainer.eval(test_loader, model.module, rank)
+        test_obj_gap = trainer.eval(test_loader, model.module, local_rank)
         dist.all_reduce(test_obj_gap, op=dist.ReduceOp.AVG)
         dist.barrier()
         test_obj_gap = test_obj_gap.item()
@@ -210,10 +212,11 @@ def run(rank, dataset, world_size, log_folder_name, args):
 
 if __name__ == '__main__':
     args = args_parser()
-    log_folder_name = save_run_config(args)
 
-    available_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
-    assert available_gpus > 1, "This running file for multi gpu usage only!!!!"
+    world_size = int(os.environ['WORLD_SIZE'])  # Total number of processes
+    rank = int(os.environ['RANK'])  # Rank of the current process
+    local_rank = int(os.environ["LOCAL_RANK"])
 
-    dataset = LPDataset(args.datapath, transform=GCNNorm() if 'gcn' in args.conv else None)
-    mp.spawn(run, args=(dataset, available_gpus, log_folder_name, args), nprocs=available_gpus, join=True)
+    assert world_size > 1, "This running file for multi gpu usage only!!!!"
+
+    run(rank, local_rank, world_size, args)

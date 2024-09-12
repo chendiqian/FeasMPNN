@@ -45,13 +45,13 @@ class CycleGNN(torch.nn.Module):
             # prediction
             if i in train_steps:
                 pred = self.gnn(data, data.x_start)
-                pred_list.append(pred)
-                label = batch_l1_normalize(data.x_solution - data.x_start, vals_batch)
-                label_list.append(label)
             else:
                 with torch.no_grad():
                     pred = self.gnn(data, data.x_start)
 
+            pred_list.append(pred)
+            label = batch_l1_normalize(data.x_solution - data.x_start, vals_batch)
+            label_list.append(label)
             pred = batch_l1_normalize(pred.detach(), vals_batch)
 
             # barrier function

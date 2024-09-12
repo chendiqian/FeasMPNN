@@ -80,7 +80,7 @@ if __name__ == '__main__':
                              num_mlp_layers=args.num_mlp_layers,
                              norm=args.norm,
                              plain_xstarts=args.plain_xstarts)
-    model = CycleGNN(1, args.ipm_eval_steps, gnn, args.tau, args.tau_scale).to(device)
+    model = CycleGNN(1, 1., args.ipm_eval_steps, gnn, args.tau, args.tau_scale).to(device)
     with torch.no_grad():
         data = next(iter(dataloader)).to(device)
     _ = gnn(data, data.x_start)

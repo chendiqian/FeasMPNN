@@ -43,6 +43,7 @@ def args_parser():
 
     # model related
     parser.add_argument('--ipm_train_steps', type=int, default=8)
+    parser.add_argument('--train_frac', type=float, default=1.)
     parser.add_argument('--ipm_eval_steps', type=int, default=32)
     parser.add_argument('--tau', type=float, default=0.01)
     parser.add_argument('--tau_scale', type=float, default=0.5)
@@ -92,17 +93,21 @@ if __name__ == '__main__':
 
     for run in range(args.runs):
         gnn = BipartiteHeteroGNN(conv=args.conv,
-                                  head=args.heads,
-                                  concat=args.concat,
-                                  hid_dim=args.hidden,
-                                  num_encode_layers=args.num_encode_layers,
-                                  num_conv_layers=args.num_conv_layers,
-                                  num_pred_layers=args.num_pred_layers,
-                                  hid_pred=args.hid_pred,
-                                  num_mlp_layers=args.num_mlp_layers,
-                                  norm=args.norm,
-                                  plain_xstarts=args.plain_xstarts)
-        model = CycleGNN(args.ipm_train_steps, args.ipm_eval_steps, gnn, args.tau, args.tau_scale).to(device)
+                                 head=args.heads,
+                                 concat=args.concat,
+                                 hid_dim=args.hidden,
+                                 num_encode_layers=args.num_encode_layers,
+                                 num_conv_layers=args.num_conv_layers,
+                                 num_pred_layers=args.num_pred_layers,
+                                 hid_pred=args.hid_pred,
+                                 num_mlp_layers=args.num_mlp_layers,
+                                 norm=args.norm,
+                                 plain_xstarts=args.plain_xstarts)
+        model = CycleGNN(args.ipm_train_steps,
+                         args.train_frac,
+                         args.ipm_eval_steps,
+                         gnn,
+                         args.tau, args.tau_scale).to(device)
         best_model = copy.deepcopy(model.state_dict())
 
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)

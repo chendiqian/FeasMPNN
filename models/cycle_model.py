@@ -9,6 +9,7 @@ from trainer import Trainer
 class CycleGNN(torch.nn.Module):
     def __init__(self,
                  num_steps: int,
+                 train_frac: float,
                  num_eval_steps: int,
                  gnn: torch.nn.Module,
                  init_tau: float,
@@ -16,6 +17,9 @@ class CycleGNN(torch.nn.Module):
         super().__init__()
 
         self.num_steps = num_steps
+        assert 0. < train_frac <= 1.
+        assert int(train_frac * num_steps) > 0
+        self.train_frac = train_frac
         self.num_eval_steps = num_eval_steps
         self.gnn = gnn
         # Todo: experimental, barrier method
@@ -31,14 +35,22 @@ class CycleGNN(torch.nn.Module):
         pred_list = []
         label_list = []
 
+        if self.train_frac < 1.:
+            train_steps = np.random.choice(self.num_steps, int(self.train_frac * self.num_steps), replace=False)
+        else:
+            train_steps = np.arange(self.num_steps)
+
         vals_batch = data['vals'].batch
         for i in range(self.num_steps):
             # prediction
-            pred = self.gnn(data, data.x_start)
-            pred_list.append(pred)
-
-            label = batch_l1_normalize(data.x_solution - data.x_start, vals_batch)
-            label_list.append(label)
+            if i in train_steps:
+                pred = self.gnn(data, data.x_start)
+                pred_list.append(pred)
+                label = batch_l1_normalize(data.x_solution - data.x_start, vals_batch)
+                label_list.append(label)
+            else:
+                with torch.no_grad():
+                    pred = self.gnn(data, data.x_start)
 
             pred = batch_l1_normalize(pred.detach(), vals_batch)
 

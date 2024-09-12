@@ -49,6 +49,7 @@ def args_parser():
 
     # model related
     parser.add_argument('--ipm_train_steps', type=int, default=8)
+    parser.add_argument('--train_frac', type=float, default=1.)
     parser.add_argument('--ipm_eval_steps', type=int, default=32)
     parser.add_argument('--tau', type=float, default=0.01)
     parser.add_argument('--tau_scale', type=float, default=0.5)
@@ -123,7 +124,11 @@ def run(rank, dataset, world_size, log_folder_name, args):
                                  num_mlp_layers=args.num_mlp_layers,
                                  norm=args.norm,
                                  plain_xstarts=args.plain_xstarts)
-        model = CycleGNN(args.ipm_train_steps, args.ipm_eval_steps, gnn, args.tau, args.tau_scale).to(rank)
+        model = CycleGNN(args.ipm_train_steps,
+                         args.train_frac,
+                         args.ipm_eval_steps,
+                         gnn,
+                         args.tau, args.tau_scale).to(rank)
         model = DistributedDataParallel(model, device_ids=[rank])
         best_model = copy.deepcopy(model.state_dict())
 

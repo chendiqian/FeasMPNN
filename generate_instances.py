@@ -75,7 +75,7 @@ def generic(nrows, ncols, A_density, P_density, rng):
     A = scipy.sparse.csc_matrix(
         (rng.randn(len(indices)), indices, indptr),
         shape=(nrows, ncols)).toarray().T
-    b = rng.rand(A.shape[0])
+    b = rng.rand(A.shape[0]) * 10.
     A, b, success = postprocess(A, b)
 
     if success:

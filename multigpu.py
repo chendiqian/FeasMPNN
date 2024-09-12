@@ -137,6 +137,7 @@ def run(rank, dataset, world_size, log_folder_name, args):
         trainer = MultiGPUTrainer(args.losstype, args.microbatch, args.coeff_l2, args.coeff_cos)
 
         for epoch in range(args.epoch):
+            train_sampler.set_epoch(epoch)
             train_loss, train_cos_sims = trainer.train(train_loader, model, optimizer, rank)
 
             dist.all_reduce(train_loss, op=dist.ReduceOp.AVG)

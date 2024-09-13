@@ -24,10 +24,8 @@ def normalize_cons(A, b):
 
 
 def postprocess(A, b):
-    A, b = normalize_cons(A, b)
-
     # process LP into standard form Ax=b, x>=0
-    lp = _LPProblem(np.ones(A.shape[1]), A, b, None, None, (0., 1.), None, None)
+    lp = _LPProblem(np.ones(A.shape[1]), A, b, None, None, (-1., 1.), None, None)
     # https://github.com/scipy/scipy/blob/v1.14.1/scipy/optimize/_linprog_util.py#L213
     lp = _clean_inputs(lp)
     # https://github.com/scipy/scipy/blob/v1.14.1/scipy/optimize/_linprog_util.py#L477
@@ -36,8 +34,8 @@ def postprocess(A, b):
         success = False
     else:
         success = True
-
-    A, b, *_ = _get_Abc(lp, 0.)
+        A, b, *_ = _get_Abc(lp, 0.)
+        A, b = normalize_cons(A, b)
     return A, b, success
 
 

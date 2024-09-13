@@ -119,6 +119,49 @@ class Trainer:
         return violation.cpu().numpy()
 
 
+class PlainGNNTrainer(Trainer):
+    def __init__(self, loss_type):
+        super().__init__(loss_type, 1., 1., 0.)
+
+    def train(self, dataloader, model, optimizer):
+        model.train()
+        optimizer.zero_grad()
+
+        train_losses = 0.
+        num_graphs = 0
+        for i, data in enumerate(dataloader):
+            data = data.to(device)
+
+            pred, label = model(data)  # nnodes x steps
+            loss = self.get_loss(pred, label, data['vals'].batch)
+
+            train_losses += loss.detach() * data.num_graphs
+            num_graphs += data.num_graphs
+
+            # use both L2 loss and Cos similarity loss
+            loss = loss / self.microbatch
+            loss.backward()
+            if (i + 1) % self.microbatch == 0 or (i + 1) == len(dataloader):
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, error_if_nonfinite=True)
+                optimizer.step()
+                optimizer.zero_grad()
+
+        return (train_losses / num_graphs).item()
+
+    @torch.no_grad()
+    def eval(self, dataloader, model):
+        model.eval()
+
+        objgaps = []
+        for i, data in enumerate(dataloader):
+            data = data.to(device)
+            pred_x, obj_gap = model.evaluation(data)
+            objgaps.append(obj_gap)
+
+        objgaps = torch.cat(objgaps, dim=0).mean().item()
+        return objgaps
+
+
 class MultiGPUTrainer(Trainer):
     def __init__(self,
                  loss_type,

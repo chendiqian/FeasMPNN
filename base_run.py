@@ -15,7 +15,7 @@ from data.collate_func import collate_fn_lp_base
 from data.transforms import GCNNorm
 from data.prefetch_generator import BackgroundGenerator
 from models.plain_gnn import BaseBipartiteHeteroGNN
-from trainer import Trainer
+from trainer import PlainGNNTrainer
 from data.utils import save_run_config
 
 
@@ -44,6 +44,7 @@ def args_parser():
     parser.add_argument('--heads', type=int, default=1, help='for GAT only')
     parser.add_argument('--concat', default=False, action='store_true', help='for GAT only')
     parser.add_argument('--hidden', type=int, default=128)
+    parser.add_argument('--num_encode_layers', type=int, default=2)
     parser.add_argument('--num_conv_layers', type=int, default=6)
     parser.add_argument('--num_pred_layers', type=int, default=2)
     parser.add_argument('--hid_pred', type=int, default=-1)
@@ -54,10 +55,6 @@ def args_parser():
 
 
 if __name__ == '__main__':
-
-    raise ValueError
-    # todo: add its own trainer
-
     args = args_parser()
     log_folder_name = save_run_config(args)
 
@@ -84,11 +81,7 @@ if __name__ == '__main__':
                              shuffle=False,
                              collate_fn=collate_fn)
 
-    best_val_losses = []
-    best_val_cos_sims = []
     best_val_objgaps = []
-    test_losses = []
-    test_cos_sims = []
     test_objgaps = []
     test_violations = []
 
@@ -97,6 +90,7 @@ if __name__ == '__main__':
                                        head=args.heads,
                                        concat=args.concat,
                                        hid_dim=args.hidden,
+                                       num_encode_layers=args.num_encode_layers,
                                        num_conv_layers=args.num_conv_layers,
                                        num_pred_layers=args.num_pred_layers,
                                        hid_pred=args.hid_pred,
@@ -111,24 +105,21 @@ if __name__ == '__main__':
                                                          patience=50 // args.eval_every,
                                                          min_lr=1.e-5)
 
-        trainer = Trainer(args.losstype, 1., 0.)
+        trainer = PlainGNNTrainer(args.losstype)
 
         pbar = tqdm(range(args.epoch))
         for epoch in pbar:
-            train_loss, train_cos_sim = trainer.train(BackgroundGenerator(train_loader, device, 4), model, optimizer)
+            train_loss = trainer.train(BackgroundGenerator(train_loader, device, 4), model, optimizer)
             stats_dict = {'train_loss': train_loss,
-                          'train_cos_sim': train_cos_sim,
                           'lr': scheduler.optimizer.param_groups[0]["lr"]}
             if epoch % args.eval_every == 0:
-                val_loss, val_cos_sim, val_obj_gap = trainer.eval(BackgroundGenerator(val_loader, device, 4), model)
+                val_obj_gap = trainer.eval(BackgroundGenerator(val_loader, device, 4), model)
 
                 if scheduler is not None:
                     scheduler.step(val_obj_gap)
 
                 if trainer.best_objgap > val_obj_gap:
                     trainer.patience = 0
-                    trainer.best_val_loss = val_loss
-                    trainer.best_cos_sim = val_cos_sim
                     trainer.best_objgap = val_obj_gap
                     best_model = copy.deepcopy(model.state_dict())
                     if args.ckpt:
@@ -139,36 +130,22 @@ if __name__ == '__main__':
                 if trainer.patience > (args.patience // args.eval_every + 1):
                     break
 
-                stats_dict['val_loss'] = val_loss
-                stats_dict['val_cos_sim'] = val_cos_sim
                 stats_dict['val_obj_gap'] = val_obj_gap
 
             pbar.set_postfix(stats_dict)
             wandb.log(stats_dict)
-        best_val_losses.append(trainer.best_val_loss)
-        best_val_cos_sims.append(trainer.best_cos_sim)
         best_val_objgaps.append(trainer.best_objgap)
 
         model.load_state_dict(best_model)
-        test_loss, test_cos_sim, test_obj_gap = trainer.eval(test_loader, model)
+        test_obj_gap = trainer.eval(test_loader, model)
         test_violation = trainer.eval_cons_violate(BackgroundGenerator(train_loader, device, 4), model)
-        test_losses.append(test_loss)
-        test_cos_sims.append(test_cos_sim)
         test_objgaps.append(test_obj_gap)
         test_violations.append(test_violation)
-        wandb.log({'test_loss': test_loss,
-                   'test_cos_sim': test_cos_sim,
-                   'test_obj_gap': test_obj_gap,
+        wandb.log({'test_obj_gap': test_obj_gap,
                    'test_violation': test_violation})
 
     wandb.log({
-        'best_val_loss': np.mean(best_val_losses),
-        'best_val_cos_sim': np.mean(best_val_cos_sims),
         'best_val_obj_gap': np.mean(best_val_objgaps),
-        'test_loss_mean': np.mean(test_losses),
-        'test_loss_std': np.std(test_losses),
-        'test_cos_sim_mean': np.mean(test_cos_sims),
-        'test_cos_sim_std': np.std(test_cos_sims),
         'test_obj_gap_mean': np.mean(test_objgaps),
         'test_obj_gap_std': np.std(test_objgaps),
         'test_violation_mean': np.mean(test_violations),

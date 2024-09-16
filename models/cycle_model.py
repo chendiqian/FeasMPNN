@@ -12,6 +12,7 @@ class CycleGNN(torch.nn.Module):
                  train_frac: float,
                  num_eval_steps: int,
                  gnn: torch.nn.Module,
+                 barrier_strength: float,
                  init_tau: float,
                  tau_scale: float):
         super().__init__()
@@ -25,6 +26,7 @@ class CycleGNN(torch.nn.Module):
         # Todo: experimental, barrier method
         self.init_tau = init_tau
         self.tau_scale = tau_scale
+        self.barrier_strength = barrier_strength
         # if the pred is accurate, step length would be 1
         # we still do a line search, in case it violates positivity
         self.step_alpha = 1.
@@ -58,7 +60,7 @@ class CycleGNN(torch.nn.Module):
 
             # barrier function
             # todo: tune this factor
-            direction = pred + 3 * tau / (data.x_start + tau)
+            direction = pred + self.barrier_strength * tau / (data.x_start + tau)
             tau = max(tau * scale, 1.e-5)
 
             # projection
@@ -106,7 +108,7 @@ class CycleGNN(torch.nn.Module):
             pred = self.gnn(data, x_start)
             # pred = batch_l1_normalize(pred, vals_batch)
             preds.append(pred)
-            direction = pred + 3. * tau / (x_start + tau)
+            direction = pred + self.barrier_strength * tau / (x_start + tau)
             tau = max(tau * self.tau_scale, 1.e-5)
 
             # projection

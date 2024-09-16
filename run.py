@@ -38,13 +38,14 @@ def args_parser():
     parser.add_argument('--batchsize', type=int, default=32)
     parser.add_argument('--val_batchsize', type=int, default=32)
     parser.add_argument('--microbatch', type=int, default=1)
-    parser.add_argument('--coeff_l2', type=float, default=0.1, help='balance between L2loss and cos loss')
+    parser.add_argument('--coeff_l2', type=float, default=1., help='balance between L2loss and cos loss')
     parser.add_argument('--coeff_cos', type=float, default=1., help='balance between L2loss and cos loss')
 
     # model related
     parser.add_argument('--ipm_train_steps', type=int, default=8)
     parser.add_argument('--train_frac', type=float, default=1.)
     parser.add_argument('--ipm_eval_steps', type=int, default=32)
+    parser.add_argument('--barrier_strength', type=float, default=3.)
     parser.add_argument('--tau', type=float, default=0.01)
     parser.add_argument('--tau_scale', type=float, default=0.5)
     parser.add_argument('--plain_xstarts', default=False, action='store_true')
@@ -107,7 +108,7 @@ if __name__ == '__main__':
                          args.train_frac,
                          args.ipm_eval_steps,
                          gnn,
-                         args.tau, args.tau_scale).to(device)
+                         args.barrier_strength, args.tau, args.tau_scale).to(device)
         best_model = copy.deepcopy(model.state_dict())
 
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)

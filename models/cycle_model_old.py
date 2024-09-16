@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 from torch_geometric.utils import to_dense_batch
-from data.utils import sync_timer, qp_obj
+from data.utils import sync_timer, batch_l1_normalize, qp_obj
 from solver.line_search import batch_line_search
 from trainer import Trainer
 
@@ -25,9 +25,7 @@ class CycleGNN(torch.nn.Module):
         # Todo: experimental, barrier method
         self.init_tau = init_tau
         self.tau_scale = tau_scale
-        # if the pred is accurate, step length would be 1
-        # we still do a line search, in case it violates positivity
-        self.step_alpha = 1.
+        self.step_alpha = 5.
 
     def forward(self, data):
 
@@ -52,12 +50,11 @@ class CycleGNN(torch.nn.Module):
                     pred = self.gnn(data, data.x_start)
 
             pred_list.append(pred)
-            label = data.x_solution - data.x_start
+            label = batch_l1_normalize(data.x_solution - data.x_start, vals_batch)
             label_list.append(label)
-            pred = pred.detach()
+            pred = batch_l1_normalize(pred.detach(), vals_batch)
 
             # barrier function
-            # todo: tune this factor
             direction = pred + 3 * tau / (data.x_start + tau)
             tau = max(tau * scale, 1.e-5)
 
@@ -104,7 +101,7 @@ class CycleGNN(torch.nn.Module):
             t_start = sync_timer()
 
             pred = self.gnn(data, x_start)
-            # pred = batch_l1_normalize(pred, vals_batch)
+            pred = batch_l1_normalize(pred, vals_batch)
             preds.append(pred)
             direction = pred + 3. * tau / (x_start + tau)
             tau = max(tau * self.tau_scale, 1.e-5)

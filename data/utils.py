@@ -4,9 +4,9 @@ import time
 import numpy as np
 import seaborn as sns
 import torch
-import yaml
 from torch_geometric.utils import scatter
 from qpsolvers import solve_qp
+from omegaconf import DictConfig, OmegaConf
 
 
 def sync_timer():
@@ -43,15 +43,16 @@ def batch_l1_normalize(x: torch.Tensor, batch: torch.Tensor, dim=0):
     return x
 
 
-def save_run_config(args):
+def save_run_config(args: DictConfig):
     if args.ckpt:
         if not os.path.isdir('logs'):
             os.mkdir('logs')
         exist_runs = [d for d in os.listdir('logs') if d.startswith(args.wandbname)]
         log_folder_name = f'logs/{args.wandbname}exp{len(exist_runs)}'
         os.mkdir(log_folder_name)
-        with open(os.path.join(log_folder_name, 'config.yaml'), 'w') as outfile:
-            yaml.dump(vars(args), outfile, default_flow_style=False)
+        # with open(os.path.join(log_folder_name, 'config.yaml'), 'w') as outfile:
+        #     yaml.dump(vars(args), outfile, default_flow_style=False)
+        OmegaConf.save(args, os.path.join(log_folder_name, 'config.yaml'))
         return log_folder_name
     return None
 

@@ -1,7 +1,7 @@
 import os
-import argparse
 import logging
 
+import hydra
 import copy
 import numpy as np
 import torch
@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data.distributed import DistributedSampler
 import wandb
+from omegaconf import DictConfig, OmegaConf
 
 from data.dataset import LPDataset
 from data.collate_func import collate_fn_lp_bi
@@ -23,59 +24,21 @@ from data.utils import save_run_config
 logging.basicConfig(level=logging.INFO, format="{asctime} - {message}", style="{", datefmt="%Y-%m-%d %H:%M:%S")
 
 
-def args_parser():
-    parser = argparse.ArgumentParser(description='hyper params for training graph dataset')
-    # admin
-    parser.add_argument('--datapath', type=str, required=True)
-    parser.add_argument('--wandbproject', type=str, default='default')
-    parser.add_argument('--wandbname', type=str, default='')
-    parser.add_argument('--use_wandb', default=False, action='store_true')
+@hydra.main(version_base=None, config_path='./config', config_name="multigpu")
+def main(args: DictConfig):
+    world_size = int(os.environ['WORLD_SIZE'])  # Total number of processes
+    rank = int(os.environ['RANK'])  # Rank of the current process
+    local_rank = int(os.environ["LOCAL_RANK"])
+    assert world_size > 1, "This running file for multi gpu usage only!!!!"
 
-    # training dynamics
-    parser.add_argument('--losstype', type=str, default='l2', choices=['l1', 'l2'])
-    parser.add_argument('--ckpt', default=False, action='store_true')
-    parser.add_argument('--runs', type=int, default=1)
-    parser.add_argument('--lr', type=float, default=1.e-3)
-    parser.add_argument('--weight_decay', type=float, default=0.)
-    parser.add_argument('--epoch', type=int, default=1000)
-    parser.add_argument('--patience', type=int, default=300)
-    parser.add_argument('--batchsize', type=int, default=32)
-    parser.add_argument('--val_batchsize', type=int, default=32)
-    parser.add_argument('--num_workers', type=int, default=1)
-    parser.add_argument('--microbatch', type=int, default=1)
-    parser.add_argument('--coeff_l2', type=float, default=1., help='balance between L2loss and cos loss')
-    parser.add_argument('--coeff_cos', type=float, default=1., help='balance between L2loss and cos loss')
-
-    # model related
-    parser.add_argument('--ipm_train_steps', type=int, default=8)
-    parser.add_argument('--train_frac', type=float, default=1.)
-    parser.add_argument('--ipm_eval_steps', type=int, default=32)
-    parser.add_argument('--barrier_strength', type=float, default=3.)
-    parser.add_argument('--tau', type=float, default=0.01)
-    parser.add_argument('--tau_scale', type=float, default=0.5)
-    parser.add_argument('--plain_xstarts', default=False, action='store_true')
-    parser.add_argument('--eval_every', type=int, default=1)
-    parser.add_argument('--conv', type=str, default='gcnconv')
-    parser.add_argument('--heads', type=int, default=1, help='for GAT only')
-    parser.add_argument('--concat', default=False, action='store_true', help='for GAT only')
-    parser.add_argument('--hidden', type=int, default=128)
-    parser.add_argument('--num_encode_layers', type=int, default=2)
-    parser.add_argument('--num_conv_layers', type=int, default=8)
-    parser.add_argument('--num_pred_layers', type=int, default=3)
-    parser.add_argument('--hid_pred', type=int, default=-1)
-    parser.add_argument('--num_mlp_layers', type=int, default=1)
-    parser.add_argument('--norm', type=str, default='graphnorm')  # empirically better
-
-    return parser.parse_args()
-
-
-def run(rank, local_rank, world_size, args):
     dist.init_process_group(backend="nccl")
 
     if rank == 0:
         log_folder_name = save_run_config(args)
 
     dataset = LPDataset(args.datapath, transform=GCNNorm() if 'gcn' in args.conv else None)
+    if args.debug:
+        dataset = dataset[:20]
 
     train_set = dataset[:int(len(dataset) * 0.8)]
     val_set = dataset[int(len(dataset) * 0.8): int(len(dataset) * 0.9)]
@@ -102,10 +65,10 @@ def run(rank, local_rank, world_size, args):
                              collate_fn=collate_fn_lp_bi)
 
     if rank == 0:
-        wandb.init(project=args.wandbproject,
-                   name=args.wandbname if args.wandbname else None,
-                   mode="online" if args.use_wandb else "disabled",
-                   config=vars(args),
+        wandb.init(project=args.wandb.project,
+                   name=args.wandb.name if args.wandb.name else None,
+                   mode="online" if args.wandb.enable else "disabled",
+                   config=OmegaConf.to_container(args, resolve=True, throw_on_missing=True),
                    entity="chendiqian")  # use your own entity
 
         best_val_objgaps = []
@@ -117,8 +80,8 @@ def run(rank, local_rank, world_size, args):
         dist.barrier()
 
         gnn = BipartiteHeteroGNN(conv=args.conv,
-                                 head=args.heads,
-                                 concat=args.concat,
+                                 head=args.gat.heads,
+                                 concat=args.gat.concat,
                                  hid_dim=args.hidden,
                                  num_encode_layers=args.num_encode_layers,
                                  num_conv_layers=args.num_conv_layers,
@@ -212,12 +175,4 @@ def run(rank, local_rank, world_size, args):
 
 
 if __name__ == '__main__':
-    args = args_parser()
-
-    world_size = int(os.environ['WORLD_SIZE'])  # Total number of processes
-    rank = int(os.environ['RANK'])  # Rank of the current process
-    local_rank = int(os.environ["LOCAL_RANK"])
-
-    assert world_size > 1, "This running file for multi gpu usage only!!!!"
-
-    run(rank, local_rank, world_size, args)
+    main()

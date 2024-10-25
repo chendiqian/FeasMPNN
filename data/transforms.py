@@ -11,8 +11,6 @@ class GCNNorm(BaseTransform):
         pass
 
     def forward(self, data: HeteroData) -> HeteroData:
-        norm_dict = {}
-        # for src, rel, dst in [('cons', 'to', 'vals'), ('vals', 'to', 'hids')]:
         for src, rel, dst in [('cons', 'to', 'vals'), ('vals', 'to', 'vals')]:
             edge_index = data[(src, rel, dst)].edge_index
             row, col = edge_index
@@ -23,8 +21,7 @@ class GCNNorm(BaseTransform):
             deg_dst_inv_sqrt = deg_dst.pow(-0.5)
             deg_dst_inv_sqrt[deg_dst_inv_sqrt == float('inf')] = 0
             norm = deg_src_inv_sqrt[row] * deg_dst_inv_sqrt[col]
-            norm_dict[(src, rel, dst)] = norm
+            data[(src, rel, dst)].norm = norm
             if src != dst:
-                norm_dict[(dst, rel, src)] = norm
-        data.norm_dict = norm_dict
+                data[(dst, rel, src)].norm = norm
         return data

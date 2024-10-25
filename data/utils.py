@@ -82,7 +82,10 @@ def project_solution(pred, A, b):
 def qp_obj(x, P_edge_index, P_weight, q, slice, x_batch):
     # new_batch._slice_dict[('vals', 'to', 'vals')]['edge_index']
     edge_batch = slice[1:] - slice[:-1]
+    if x.dim() > 1:
+        P_weight = P_weight[:, None]
+        q = q[:, None]
     edge_batch = torch.arange(len(edge_batch), device=x.device).repeat_interleave(edge_batch)
-    xQx = scatter(x[P_edge_index[0]] * x[P_edge_index[1]] * P_weight * 0.5, edge_batch, reduce='sum')
-    qx = scatter(x * q, x_batch, reduce='sum')
+    xQx = scatter(x[P_edge_index[0]] * x[P_edge_index[1]] * P_weight * 0.5, edge_batch, dim=0, reduce='sum')
+    qx = scatter(x * q, x_batch, dim=0, reduce='sum')
     return xQx + qx

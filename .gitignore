@@ -4,5 +4,6 @@ __pycache__/
 .DS_Store
 wandb/
 logs/
+outputs/
 *.pt
 *.gz

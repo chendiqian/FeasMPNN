@@ -82,7 +82,7 @@ def main(args: DictConfig):
             # gnn_objgaps.append(obj_gaps)
             best_obj = best_obj.cpu().numpy()
             gaps.append(best_obj)
-            vios.append(Trainer.violate_per_batch(final_x[:, None], data))
+            vios.append(Trainer.violate_per_batch(final_x[:, None], data).cpu().numpy())
 
             stat_dict = {'gap': best_obj.mean(), 'time': gnn_times[-1], 'vio': vios[-1]}
             pbar.set_postfix(stat_dict)

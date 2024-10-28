@@ -1,0 +1,27 @@
+wandb:
+  project: default
+  name: ''
+  enable: False
+
+debug: false
+datapath: /work/log1/chendi.qian/qp_400_new
+modelpath: ./ckpt
+batchsize: 1   # can evaluate in batches
+
+ipm_eval_steps: 32
+barrier_strength: 3.
+tau: 0.01
+tau_scale: 0.5
+plain_xstarts: false
+eval_every: 1
+conv: gcnconv
+gat:
+  heads: 1
+  concat: false
+hidden: 128
+num_encode_layers: 2
+num_conv_layers: 8
+num_pred_layers: 2
+hid_pred: -1
+num_mlp_layers: 1
+norm: graphnorm

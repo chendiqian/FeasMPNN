@@ -20,7 +20,7 @@ from trainer import PlainGNNTrainer
 from data.utils import save_run_config
 
 
-@hydra.main(version_base=None, config_path='./config', config_name="naive")
+@hydra.main(version_base=None, config_path='./config', config_name="run_base")
 def main(args: DictConfig):
     log_folder_name = save_run_config(args)
 
@@ -73,12 +73,13 @@ def main(args: DictConfig):
                                                          patience=50 // args.eval_every,
                                                          min_lr=1.e-5)
 
-        trainer = PlainGNNTrainer(args.losstype)
+        trainer = PlainGNNTrainer(args.losstype, args.coeff_obj, args.coeff_vio)
 
         pbar = tqdm(range(args.epoch))
         for epoch in pbar:
-            train_loss = trainer.train(BackgroundGenerator(train_loader, device, 4), model, optimizer)
+            train_loss, train_vios = trainer.train(BackgroundGenerator(train_loader, device, 4), model, optimizer)
             stats_dict = {'train_loss': train_loss,
+                          'train_vios': train_vios,
                           'lr': scheduler.optimizer.param_groups[0]["lr"]}
             if epoch % args.eval_every == 0:
                 val_obj_gap, val_vio = trainer.eval(BackgroundGenerator(val_loader, device, 4), model)

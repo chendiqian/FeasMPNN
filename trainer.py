@@ -106,23 +106,31 @@ class Trainer:
 
 
 class PlainGNNTrainer(Trainer):
-    def __init__(self, loss_type):
+    def __init__(self, loss_type, coeff_obj, coeff_vio):
         super().__init__(loss_type, 1., 1., 0.)
+        self.coeff_obj = coeff_obj
+        self.coeff_vio = coeff_vio
 
     def train(self, dataloader, model, optimizer):
         model.train()
         optimizer.zero_grad()
 
         train_losses = 0.
+        train_vios = 0.
         num_graphs = 0
         for i, data in enumerate(dataloader):
             data = data.to(device)
 
             pred, label = model(data)  # nnodes x steps
             loss = self.get_loss(pred, label, data['vals'].batch)
+            loss_vio = (self.violate_per_batch(pred, data) ** 2).mean()
 
             train_losses += loss.detach() * data.num_graphs
+            train_vios += loss_vio.detach() * data.num_graphs
             num_graphs += data.num_graphs
+
+            if self.coeff_vio > 0:
+                loss = loss * self.coeff_obj + loss_vio * self.coeff_vio
 
             # use both L2 loss and Cos similarity loss
             loss = loss / self.microbatch
@@ -132,7 +140,7 @@ class PlainGNNTrainer(Trainer):
                 optimizer.step()
                 optimizer.zero_grad()
 
-        return (train_losses / num_graphs).item()
+        return train_losses.item() / num_graphs, train_vios.item() / num_graphs
 
     @torch.no_grad()
     def eval(self, dataloader, model):

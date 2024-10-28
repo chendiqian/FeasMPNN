@@ -81,7 +81,7 @@ def main(args: DictConfig):
             stats_dict = {'train_loss': train_loss,
                           'lr': scheduler.optimizer.param_groups[0]["lr"]}
             if epoch % args.eval_every == 0:
-                val_obj_gap = trainer.eval(BackgroundGenerator(val_loader, device, 4), model)
+                val_obj_gap, val_vio = trainer.eval(BackgroundGenerator(val_loader, device, 4), model)
 
                 if scheduler is not None:
                     scheduler.step(val_obj_gap)
@@ -99,14 +99,14 @@ def main(args: DictConfig):
                     break
 
                 stats_dict['val_obj_gap'] = val_obj_gap
+                stats_dict['val_vio'] = val_vio
 
             pbar.set_postfix(stats_dict)
             wandb.log(stats_dict)
         best_val_objgaps.append(trainer.best_objgap)
 
         model.load_state_dict(best_model)
-        test_obj_gap = trainer.eval(test_loader, model)
-        test_violation = trainer.eval_cons_violate(BackgroundGenerator(train_loader, device, 4), model)
+        test_obj_gap, test_violation = trainer.eval(test_loader, model)
         test_objgaps.append(test_obj_gap)
         test_violations.append(test_violation)
         wandb.log({'test_obj_gap': test_obj_gap,

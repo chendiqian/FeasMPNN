@@ -1,11 +1,11 @@
-from torch_geometric.utils import to_dense_batch
 from typing import Dict, Optional
 
 import torch
-from torch_geometric.nn import MLP
 from torch_geometric.typing import EdgeType, NodeType
+
+from data.utils import qp_obj
 from models.hetero_gnn import BipartiteHeteroGNN
-from data.utils import sync_timer, batch_l1_normalize, qp_obj
+from trainer import Trainer
 
 
 class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
@@ -39,12 +39,13 @@ class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
         opt_obj = data.obj_solution
 
         # prediction
-        pred_x = self.forward(data)[0].squeeze(1)
+        pred_x = self.forward(data)[0]   # nnodes, 1
 
         vals_batch = data['vals'].batch
         P_edge_index = data.edge_index_dict[('vals', 'to', 'vals')]
         P_weight = data.edge_attr_dict[('vals', 'to', 'vals')].squeeze()
         P_edge_slice = data._slice_dict[('vals', 'to', 'vals')]['edge_index'].to(pred_x.device)
 
-        batch_obj = qp_obj(pred_x, P_edge_index, P_weight, data.q, P_edge_slice, vals_batch)
-        return pred_x, torch.abs((opt_obj - batch_obj) / opt_obj)
+        batch_obj = qp_obj(pred_x.squeeze(1), P_edge_index, P_weight, data.q, P_edge_slice, vals_batch)
+        batch_violation = Trainer.violate_per_batch(pred_x, data)
+        return pred_x, torch.abs((opt_obj - batch_obj) / opt_obj), batch_violation

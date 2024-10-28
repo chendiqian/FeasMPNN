@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from torch_geometric.utils import to_dense_batch, scatter
 from torch_sparse import spmm
+from data.utils import qp_obj
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 cos_metric = torch.nn.CosineEmbeddingLoss(reduction='none')
@@ -95,28 +96,13 @@ class Trainer:
         cos = torch.vmap(cos_metric, in_dims=(2, 2, None), out_dims=1)(pred_batch, label_batch, target)  # batchsize x steps
         return cos
 
-    @torch.no_grad()
-    def eval_cons_violate(self, dataloader, model):
-        model.eval()
-
-        violations = 0.
-        num_graphs = 0
-        for i, data in enumerate(dataloader):
-            data = data.to(device)
-            pred, _ = model(data)
-            violation = self.violate_per_batch(pred, data).sum()
-            violations += violation
-            num_graphs += data.num_graphs
-
-        return violations / num_graphs
-
     @classmethod
     def violate_per_batch(cls, pred, data) -> torch.Tensor:
         Ax_minus_b = spmm(data['cons', 'to', 'vals'].edge_index,
                           data['cons', 'to', 'vals'].edge_attr.squeeze(),
                           data['cons'].num_nodes, data['vals'].num_nodes, pred).squeeze() - data.b
         violation = scatter(torch.abs(Ax_minus_b), data['cons'].batch, dim=0, reduce='mean')  # (batchsize,)
-        return violation.cpu().numpy()
+        return violation
 
 
 class PlainGNNTrainer(Trainer):
@@ -153,13 +139,17 @@ class PlainGNNTrainer(Trainer):
         model.eval()
 
         objgaps = []
+        violations = []
         for i, data in enumerate(dataloader):
             data = data.to(device)
-            pred_x, obj_gap = model.evaluation(data)
+            _, obj_gap, violation = model.evaluation(data)
+
             objgaps.append(obj_gap)
+            violations.append(violation)
 
         objgaps = torch.cat(objgaps, dim=0).mean().item()
-        return objgaps
+        violations = torch.cat(violations, dim=0).mean().item()
+        return objgaps, violations
 
 
 class MultiGPUTrainer(Trainer):

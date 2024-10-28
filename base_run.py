@@ -1,7 +1,7 @@
 import os
-import argparse
 from functools import partial
 
+import hydra
 import copy
 import numpy as np
 import torch
@@ -9,6 +9,7 @@ from torch import optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import wandb
+from omegaconf import DictConfig, OmegaConf
 
 from data.dataset import LPDataset
 from data.collate_func import collate_fn_lp_base
@@ -19,49 +20,14 @@ from trainer import PlainGNNTrainer
 from data.utils import save_run_config
 
 
-def args_parser():
-    parser = argparse.ArgumentParser(description='hyper params for training graph dataset')
-    # admin
-    parser.add_argument('--datapath', type=str, required=True)
-    parser.add_argument('--wandbproject', type=str, default='default')
-    parser.add_argument('--wandbname', type=str, default='')
-    parser.add_argument('--use_wandb', default=False, action='store_true')
-
-    # training dynamics
-    parser.add_argument('--losstype', type=str, default='l2', choices=['l1', 'l2'])
-    parser.add_argument('--ckpt', default=False, action='store_true')
-    parser.add_argument('--runs', type=int, default=1)
-    parser.add_argument('--lr', type=float, default=1.e-3)
-    parser.add_argument('--weight_decay', type=float, default=0.)
-    parser.add_argument('--epoch', type=int, default=1000)
-    parser.add_argument('--patience', type=int, default=100)
-    parser.add_argument('--batchsize', type=int, default=32)
-    parser.add_argument('--val_batchsize', type=int, default=1024)
-
-    # model related
-    parser.add_argument('--eval_every', type=int, default=1)
-    parser.add_argument('--conv', type=str, default='gcnconv')
-    parser.add_argument('--heads', type=int, default=1, help='for GAT only')
-    parser.add_argument('--concat', default=False, action='store_true', help='for GAT only')
-    parser.add_argument('--hidden', type=int, default=128)
-    parser.add_argument('--num_encode_layers', type=int, default=2)
-    parser.add_argument('--num_conv_layers', type=int, default=6)
-    parser.add_argument('--num_pred_layers', type=int, default=2)
-    parser.add_argument('--hid_pred', type=int, default=-1)
-    parser.add_argument('--num_mlp_layers', type=int, default=2, help='mlp layers within GENConv')
-    parser.add_argument('--norm', type=str, default='graphnorm')  # empirically better
-
-    return parser.parse_args()
-
-
-if __name__ == '__main__':
-    args = args_parser()
+@hydra.main(version_base=None, config_path='./config', config_name="naive")
+def main(args: DictConfig):
     log_folder_name = save_run_config(args)
 
-    wandb.init(project=args.wandbproject,
-               name=args.wandbname if args.wandbname else None,
-               mode="online" if args.use_wandb else "disabled",
-               config=vars(args),
+    wandb.init(project=args.wandb.project,
+               name=args.wandb.name if args.wandb.name else None,
+               mode="online" if args.wandb.enable else "disabled",
+               config=OmegaConf.to_container(args, resolve=True, throw_on_missing=True),
                entity="chendiqian")  # use your own entity
 
     dataset = LPDataset(args.datapath, transform=GCNNorm() if 'gcn' in args.conv else None)
@@ -87,8 +53,8 @@ if __name__ == '__main__':
 
     for run in range(args.runs):
         model = BaseBipartiteHeteroGNN(conv=args.conv,
-                                       head=args.heads,
-                                       concat=args.concat,
+                                       head=args.gat.heads,
+                                       concat=args.gat.concat,
                                        hid_dim=args.hidden,
                                        num_encode_layers=args.num_encode_layers,
                                        num_conv_layers=args.num_conv_layers,
@@ -151,3 +117,7 @@ if __name__ == '__main__':
         'test_violation_mean': np.mean(test_violations),
         'test_violation_std': np.std(test_violations),
     })
+
+
+if __name__ == '__main__':
+    main()

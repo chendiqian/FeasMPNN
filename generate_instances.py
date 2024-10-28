@@ -85,4 +85,33 @@ def generic(nrows, ncols, A_density, P_density, rng):
     else:
         q = P = None
 
-    return A.astype(np.float64), b.astype(np.float64), P, q, success
+    lb = np.zeros(A.shape[1]).astype(np.float64)
+    ub = None
+    G, h = None, None
+
+    return A.astype(np.float64), b.astype(np.float64), G, h, P, q, lb, ub, success
+
+
+def soft_svm(nums, dims, lamb, density, rng):
+    A1 = rng.normal(1 / dims / density, 1 / dims / density, (nums // 2, dims))  # generate gaussian
+    A2 = rng.normal(-1 / dims / density, 1 / dims / density, (nums // 2, dims))  # generate gaussian
+    A = np.vstack([A1, A2])
+    A[rng.rand(*A.shape) > density] = 0.
+
+    # labels
+    b = np.hstack([np.ones(nums // 2) * 1., np.ones(nums // 2) * -1.])
+
+    A = A * b[:, None]
+
+    A = np.concatenate([A, np.eye(nums) * 1., np.eye(nums) * -1.], axis=1).astype(np.float64)
+    b = np.ones(nums).astype(np.float64)
+
+    P = np.diag(np.concatenate([np.ones(dims) * 0.5, np.zeros(2 * nums)], axis=0)).astype(np.float64)
+    q = np.concatenate([np.zeros(dims), lamb * np.ones(nums), np.zeros(nums)], axis=0).astype(np.float64)
+
+    # todo: for correct svm, the w should have no lower bound, but for now we make them unified
+    lb = np.zeros(A.shape[1]).astype(np.float64)
+    # lb = np.concatenate([np.ones(dims) * -np.inf, np.zeros(2 * nums)], axis=0).astype(np.float64)
+    ub = None
+    G, h = None, None
+    return A, b, G, h, P, q, lb, ub, True

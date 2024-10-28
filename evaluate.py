@@ -1,11 +1,12 @@
-import argparse
 import os
 
+import hydra
 import numpy as np
 import torch
 import wandb
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from omegaconf import DictConfig, OmegaConf
 
 from trainer import Trainer
 from data.dataset import LPDataset
@@ -15,46 +16,17 @@ from models.cycle_model import CycleGNN
 from models.hetero_gnn import BipartiteHeteroGNN
 
 
-def args_parser():
-    parser = argparse.ArgumentParser(description='hyper params for training graph dataset')
-    # admin
-    parser.add_argument('--datapath', type=str, required=True)
-    parser.add_argument('--modelpath', type=str, default=None)
-    parser.add_argument('--wandbproject', type=str, default='default')
-    parser.add_argument('--wandbname', type=str, default='')
-    parser.add_argument('--use_wandb', default=False, action='store_true')
-    parser.add_argument('--plot', default=False, action='store_true')
-
-    # model related
-    parser.add_argument('--batchsize', type=int, default=1)
-    parser.add_argument('--ipm_eval_steps', type=int, default=32)
-    parser.add_argument('--tau', type=float, default=0.01)
-    parser.add_argument('--tau_scale', type=float, default=0.5)
-    parser.add_argument('--plain_xstarts', default=False, action='store_true')
-    parser.add_argument('--conv', type=str, default='gcnconv')
-    parser.add_argument('--heads', type=int, default=1, help='for GAT only')
-    parser.add_argument('--concat', default=False, action='store_true', help='for GAT only')
-    parser.add_argument('--hidden', type=int, default=128)
-    parser.add_argument('--num_encode_layers', type=int, default=2)
-    parser.add_argument('--num_conv_layers', type=int, default=8)
-    parser.add_argument('--num_pred_layers', type=int, default=3)
-    parser.add_argument('--hid_pred', type=int, default=-1)
-    parser.add_argument('--num_mlp_layers', type=int, default=1)
-    parser.add_argument('--norm', type=str, default='graphnorm')  # empirically better
-
-    return parser.parse_args()
-
-
-if __name__ == '__main__':
-    args = args_parser()
-
-    wandb.init(project=args.wandbproject,
-               name=args.wandbname if args.wandbname else None,
-               mode="online" if args.use_wandb else "disabled",
-               config=vars(args),
+@hydra.main(version_base=None, config_path='./config', config_name="evaluate")
+def main(args: DictConfig):
+    wandb.init(project=args.wandb.project,
+               name=args.wandb.name if args.wandb.name else None,
+               mode="online" if args.wandb.enable else "disabled",
+               config=OmegaConf.to_container(args, resolve=True, throw_on_missing=True),
                entity="chendiqian")  # use your own entity
 
     dataset = LPDataset(args.datapath, transform=GCNNorm() if 'gcn' in args.conv else None)[-1000:]
+    if args.debug:
+        dataset = dataset[:20]
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     dataloader = DataLoader(dataset,
@@ -70,8 +42,8 @@ if __name__ == '__main__':
 
     # warmup and set dimensions
     gnn = BipartiteHeteroGNN(conv=args.conv,
-                             head=args.heads,
-                             concat=args.concat,
+                             head=args.gat.heads,
+                             concat=args.gat.concat,
                              hid_dim=args.hidden,
                              num_encode_layers=args.num_encode_layers,
                              num_conv_layers=args.num_conv_layers,
@@ -80,7 +52,8 @@ if __name__ == '__main__':
                              num_mlp_layers=args.num_mlp_layers,
                              norm=args.norm,
                              plain_xstarts=args.plain_xstarts)
-    model = CycleGNN(1, 1., args.ipm_eval_steps, gnn, args.tau, args.tau_scale).to(device)
+    model = CycleGNN(1, 1., args.ipm_eval_steps, gnn,
+                     args.barrier_strength, args.tau, args.tau_scale).to(device)
     with torch.no_grad():
         data = next(iter(dataloader)).to(device)
     _ = gnn(data, data.x_start)
@@ -131,3 +104,7 @@ if __name__ == '__main__':
                  "gnn_time_std": np.std(gnn_times)}
 
     wandb.log(stat_dict)
+
+
+if __name__ == '__main__':
+    main()

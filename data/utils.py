@@ -47,7 +47,7 @@ def save_run_config(args: DictConfig):
     if args.ckpt:
         if not os.path.isdir('logs'):
             os.mkdir('logs')
-        prefix = os.path.join(args.wandb.project, args.wandb.name)
+        prefix = f'{args.wandb.project}_{args.wandb.name}'
         exist_runs = [d for d in os.listdir('logs') if d.startswith(prefix)]
         log_folder_name = f'logs/{prefix}_exp{len(exist_runs)}'
         os.mkdir(log_folder_name)

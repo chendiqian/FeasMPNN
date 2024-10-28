@@ -13,7 +13,6 @@ barrier_strength: 3.
 tau: 0.01
 tau_scale: 0.5
 plain_xstarts: false
-eval_every: 1
 conv: gcnconv
 gat:
   heads: 1

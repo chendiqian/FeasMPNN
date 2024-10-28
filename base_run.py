@@ -31,6 +31,8 @@ def main(args: DictConfig):
                entity="chendiqian")  # use your own entity
 
     dataset = LPDataset(args.datapath, transform=GCNNorm() if 'gcn' in args.conv else None)
+    if args.debug:
+        dataset = dataset[:20]
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     collate_fn = partial(collate_fn_lp_base)

@@ -1,74 +1,51 @@
-import argparse
 import os
-from functools import partial
 
+import hydra
 import numpy as np
 import torch
 import wandb
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from omegaconf import DictConfig, OmegaConf
 
-from trainer import Trainer
 from data.transforms import GCNNorm
 from data.dataset import LPDataset
 from data.collate_func import collate_fn_lp_bi
+from data.utils import sync_timer
 from models.plain_gnn import BaseBipartiteHeteroGNN
 
 
-def args_parser():
-    parser = argparse.ArgumentParser(description='hyper params for training graph dataset')
-    # admin
-    parser.add_argument('--datapath', type=str, required=True)
-    parser.add_argument('--modelpath', type=str, required=True)
-    parser.add_argument('--wandbproject', type=str, default='default')
-    parser.add_argument('--wandbname', type=str, default='')
-    parser.add_argument('--use_wandb', default=False, action='store_true')
-
-    # model related
-    parser.add_argument('--ipm_eval_steps', type=int, default=64)
-    parser.add_argument('--conv', type=str, default='gcnconv')
-    parser.add_argument('--heads', type=int, default=1, help='for GAT only')
-    parser.add_argument('--concat', default=False, action='store_true', help='for GAT only')
-    parser.add_argument('--hidden', type=int, default=128)
-    parser.add_argument('--num_conv_layers', type=int, default=6)
-    parser.add_argument('--num_pred_layers', type=int, default=2)
-    parser.add_argument('--num_mlp_layers', type=int, default=2, help='mlp layers within GENConv')
-    parser.add_argument('--norm', type=str, default='graphnorm')  # empirically better
-
-    return parser.parse_args()
-
-
-if __name__ == '__main__':
-    args = args_parser()
-
-    wandb.init(project=args.wandbproject,
-               name=args.wandbname if args.wandbname else None,
-               mode="online" if args.use_wandb else "disabled",
-               config=vars(args),
+@hydra.main(version_base=None, config_path='./config', config_name="eval_base")
+def main(args: DictConfig):
+    wandb.init(project=args.wandb.project,
+               name=args.wandb.name if args.wandb.name else None,
+               mode="online" if args.wandb.enable else "disabled",
+               config=OmegaConf.to_container(args, resolve=True, throw_on_missing=True),
                entity="chendiqian")  # use your own entity
 
     dataset = LPDataset(args.datapath, transform=GCNNorm() if 'gcn' in args.conv else None)[-1000:]
+    if args.debug:
+        dataset = dataset[:20]
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    collate_fn = partial(collate_fn_lp_bi, device=device)
     dataloader = DataLoader(dataset,
                             batch_size=1,
                             shuffle=False,
-                            collate_fn=collate_fn)
+                            collate_fn=collate_fn_lp_bi)
 
     gnn_times = []
-    oneshot_best_gnn_obj = []
-    oneshot_gnn_violations = []
-    search_best_gnn_obj = []
-    search_gnn_violations = []
+    best_gnn_obj = []
+    gnn_violations = []
 
     # warmup and set dimensions
     model = BaseBipartiteHeteroGNN(conv=args.conv,
-                                   head=args.heads,
-                                   concat=args.concat,
+                                   head=args.gat.heads,
+                                   concat=args.gat.concat,
                                    hid_dim=args.hidden,
+                                   num_encode_layers=args.num_encode_layers,
                                    num_conv_layers=args.num_conv_layers,
                                    num_pred_layers=args.num_pred_layers,
+                                   hid_pred=args.hid_pred,
                                    num_mlp_layers=args.num_mlp_layers,
                                    norm=args.norm).to(device)
     data = next(iter(dataloader)).to(device)
@@ -78,44 +55,35 @@ if __name__ == '__main__':
         model.load_state_dict(torch.load(os.path.join(args.modelpath, ckpt), map_location=device))
         model.eval()
 
-        os_gaps = []
-        os_vios = []
-        search_gaps = []
-        search_vios = []
+        gaps = []
+        vios = []
 
         pbar = tqdm(dataloader)
         for data in pbar:
             data = data.to(device)
-            # oneshot prediction
-            oneshot_prediction, oneshot_obj_gap, *_ = model.evaluation(data)
-            os_vios.append(Trainer.violate_per_batch(oneshot_prediction[:, None], data))
-            oneshot_obj_gap = oneshot_obj_gap.cpu().numpy()
-            os_gaps.append(oneshot_obj_gap)
+            t1 = sync_timer()
+            prediction, obj_gap, vio = model.evaluation(data)
+            t2 = sync_timer()
+            obj_gap = obj_gap.cpu().numpy()
+            vio = vio.cpu().numpy()
+            vios.append(vio)
+            gaps.append(obj_gap)
+            gnn_times.append(t2 - t1)
 
-            # do the search
-            project_x_objgap, final_x, obj_gaps, time_total = model.cycle_eval(data, args.ipm_eval_steps)
-            gnn_times.append(time_total)
-            search_gaps.append(obj_gaps[-1])
-            search_vios.append(Trainer.violate_per_batch(final_x[:, None], data))
+            pbar.set_postfix({'obj_gap': obj_gap.mean(), 'violation': vio.mean()})
 
-            pbar.set_postfix({'os_gap': oneshot_obj_gap.mean(),
-                              'proj_gap': project_x_objgap,
-                              'search_gap': obj_gaps[-1]})
+        best_gnn_obj.append(np.mean(np.concatenate(gaps)))
+        gnn_violations.append(np.mean(np.concatenate(vios)))
 
-        search_best_gnn_obj.append(np.mean(np.concatenate(search_gaps)))
-        search_gnn_violations.append(np.mean(np.concatenate(search_vios)))
-        oneshot_best_gnn_obj.append(np.mean(np.concatenate(os_gaps)))
-        oneshot_gnn_violations.append(np.mean(np.concatenate(os_vios)))
-
-    stat_dict = {"oneshot_obj_mean": np.mean(oneshot_best_gnn_obj),
-                 "oneshot_obj_std": np.std(oneshot_best_gnn_obj),
-                 "oneshot_vio_mean": np.mean(oneshot_gnn_violations),
-                 "oneshot_vio_std": np.std(oneshot_gnn_violations),
-                 "search_obj_mean": np.mean(search_best_gnn_obj),
-                 "search_obj_std": np.std(search_best_gnn_obj),
-                 "search_vio_mean": np.mean(search_gnn_violations),
-                 "search_vio_std": np.std(search_gnn_violations),
+    stat_dict = {"obj_mean": np.mean(best_gnn_obj),
+                 "obj_std": np.std(best_gnn_obj),
+                 "vio_mean": np.mean(gnn_violations),
+                 "vio_std": np.std(gnn_violations),
                  "gnn_time_mean": np.mean(gnn_times),
                  "gnn_time_std": np.std(gnn_times)}
 
     wandb.log(stat_dict)
+
+
+if __name__ == '__main__':
+    main()

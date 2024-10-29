@@ -1,0 +1,6 @@
+wandb:
+  project: default
+  name: ''
+  enable: False
+
+datapath: /work/log1/chendi.qian/qp_generic_400_sub

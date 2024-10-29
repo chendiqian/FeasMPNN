@@ -1,34 +1,23 @@
-import argparse
-
+import hydra
 import numpy as np
 import wandb
 from tqdm import tqdm
+from omegaconf import DictConfig, OmegaConf
 
 from data.dataset import LPDataset
 from data.utils import sync_timer, recover_qp_from_data
 from qpsolvers import solve_qp
 
 
-def args_parser():
-    parser = argparse.ArgumentParser(description='hyper params for training graph dataset')
-    # admin
-    parser.add_argument('--datapath', type=str, required=True)
-    parser.add_argument('--wandbproject', type=str, default='default')
-    parser.add_argument('--wandbname', type=str, default='')
-    parser.add_argument('--use_wandb', default=False, action='store_true')
-    return parser.parse_args()
+@hydra.main(version_base=None, config_path='./config', config_name="evaluate")
+def main(args: DictConfig):
+    wandb.init(project=args.wandb.project,
+               name=args.wandb.name if args.wandb.name else None,
+               mode="online" if args.wandb.enable else "disabled",
+               config=OmegaConf.to_container(args, resolve=True, throw_on_missing=True),
+               entity="chendiqian")
 
-
-if __name__ == '__main__':
-    args = args_parser()
-
-    wandb.init(project=args.wandbproject,
-               name=args.wandbname if args.wandbname else None,
-               mode="online" if args.use_wandb else "disabled",
-               config=vars(args),
-               entity="chendiqian")  # use your own entity
-
-    dataset = LPDataset(args.datapath)[-1000:]
+    dataset = LPDataset(args.datapath)[-100:]
 
     cvxopt_time = []
     osqp_time = []
@@ -59,3 +48,7 @@ if __name__ == '__main__':
                  "osqp_std": np.std(osqp_time)}
 
     wandb.log(stat_dict)
+
+
+if __name__ == '__main__':
+    main()

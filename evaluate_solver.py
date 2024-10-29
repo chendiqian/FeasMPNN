@@ -2,11 +2,10 @@ import argparse
 
 import numpy as np
 import wandb
-from torch_sparse import SparseTensor
 from tqdm import tqdm
 
 from data.dataset import LPDataset
-from data.utils import sync_timer
+from data.utils import sync_timer, recover_qp_from_data
 from qpsolvers import solve_qp
 
 
@@ -36,25 +35,15 @@ if __name__ == '__main__':
 
     pbar = tqdm(dataset)
     for data in pbar:
-        q = data.q.numpy().astype(np.float64)
-        b = data.b.numpy().astype(np.float64)
-        A = SparseTensor(row=data['cons', 'to', 'vals'].edge_index[0],
-                         col=data['cons', 'to', 'vals'].edge_index[1],
-                         value=data['cons', 'to', 'vals'].edge_attr.squeeze(),
-                         is_sorted=True, trust_data=True).to_dense().numpy().astype(np.float64)
-        P = SparseTensor(row=data['vals', 'to', 'vals'].edge_index[0],
-                         col=data['vals', 'to', 'vals'].edge_index[1],
-                         value=data['vals', 'to', 'vals'].edge_attr.squeeze(),
-                         is_sorted=True, trust_data=True).to_dense().numpy().astype(np.float64)
-        lb = np.zeros(A.shape[1]).astype(np.float64)
+        P, q, A, b, G, h, lb, ub = recover_qp_from_data(data)
 
         start_t = sync_timer()
-        solution = solve_qp(P, q, None, None, A, b, lb=lb, solver="cvxopt")
+        solution = solve_qp(P, q, G, h, A, b, lb=lb, ub=ub, solver="cvxopt")
         end_t = sync_timer()
         cvxopt_time.append(end_t - start_t)
 
         start_t = sync_timer()
-        solution = solve_qp(P, q, None, None, A, b, lb=lb, solver="osqp")
+        solution = solve_qp(P, q, G, h, A, b, lb=lb, ub=ub, solver="osqp")
         end_t = sync_timer()
         osqp_time.append(end_t - start_t)
 

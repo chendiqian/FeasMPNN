@@ -4,9 +4,10 @@ import time
 import numpy as np
 import seaborn as sns
 import torch
-from torch_geometric.utils import scatter
-from qpsolvers import solve_qp
 from omegaconf import DictConfig, OmegaConf
+from qpsolvers import solve_qp
+from torch_geometric.utils import scatter
+from torch_sparse import SparseTensor
 
 
 def sync_timer():
@@ -90,3 +91,21 @@ def qp_obj(x, P_edge_index, P_weight, q, slice, x_batch):
     xQx = scatter(x[P_edge_index[0]] * x[P_edge_index[1]] * P_weight * 0.5, edge_batch, dim=0, reduce='sum')
     qx = scatter(x * q, x_batch, dim=0, reduce='sum')
     return xQx + qx
+
+
+def recover_qp_from_data(data, dtype=np.float32):
+    q = data.q.numpy().astype(dtype)
+    b = data.b.numpy().astype(dtype)
+    A = SparseTensor(row=data['cons', 'to', 'vals'].edge_index[0],
+                     col=data['cons', 'to', 'vals'].edge_index[1],
+                     value=data['cons', 'to', 'vals'].edge_attr.squeeze(),
+                     is_sorted=True, trust_data=True).to_dense().numpy().astype(dtype)
+    P = SparseTensor(row=data['vals', 'to', 'vals'].edge_index[0],
+                     col=data['vals', 'to', 'vals'].edge_index[1],
+                     value=data['vals', 'to', 'vals'].edge_attr.squeeze(),
+                     is_sorted=True, trust_data=True).to_dense().numpy().astype(dtype)
+    # todo: might vary
+    lb = np.zeros(A.shape[1]).astype(dtype)
+
+    G, h, ub = (None,) * 3
+    return P, q, A, b, G, h, lb, ub

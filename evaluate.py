@@ -66,7 +66,7 @@ def main(args: DictConfig):
         for _ in range(10):
             _ = gnn(data, data.x_start)
 
-    _, _, A, b, _, _, _, _ = recover_qp_from_data(data)
+    _, _, A, b, _, _, _, _ = recover_qp_from_data(data.to('cpu'))
     for _ in range(20):
         _ = null_space(A)
         _ = _ip_hsd_feas(A, b, np.zeros(A.shape[1]), 0.,

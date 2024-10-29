@@ -146,6 +146,8 @@ def main(args: DictConfig):
                  "gnn_time_per_step_std": np.std(time_per_step_gnn),
                  "total_time_mean": np.mean(total_times),
                  "total_time_std": np.std(total_times),
+                 "prep_time_mean": np.mean(preprocess_times),
+                 "prep_time_std": np.std(preprocess_times),
                  "gnn_time_mean": np.mean(gnn_times),
                  "gnn_time_std": np.std(gnn_times)}
 

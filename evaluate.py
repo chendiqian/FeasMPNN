@@ -59,17 +59,35 @@ def main(args: DictConfig):
                              plain_xstarts=args.plain_xstarts)
     model = CycleGNN(1, 1., args.ipm_eval_steps, gnn,
                      args.barrier_strength, args.tau, args.tau_scale).to(device)
+
+    # warm up
     with torch.no_grad():
         data = next(iter(dataloader)).to(device)
-    _ = gnn(data, data.x_start)
+        for _ in range(10):
+            _ = gnn(data, data.x_start)
+
+    _, _, A, b, _, _, _, _ = recover_qp_from_data(data)
+    for _ in range(20):
+        _ = null_space(A)
+        _ = _ip_hsd_feas(A, b, np.zeros(A.shape[1]), 0.,
+                         alpha0=0.9999999, beta=0.1,
+                         maxiter=5, tol=1.e-3, sparse=True,
+                         lstsq=False, sym_pos=True, cholesky=None,
+                         pc=True, ip=True, permc_spec='MMD_AT_PLUS_A',
+                         rand_start=False)
+
+    # end warming up
     del data
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
+    # prep pretrained model
     if args.modelpath is not None:
         model_list = [n for n in os.listdir(args.modelpath) if n.endswith('.pt')]
     else:
         model_list = [None]
+
+    # begin evaluation
     for ckpt in model_list:
         if ckpt is not None:
             model.load_state_dict(torch.load(os.path.join(args.modelpath, ckpt), map_location=device))

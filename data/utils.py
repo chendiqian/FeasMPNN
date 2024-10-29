@@ -94,6 +94,7 @@ def qp_obj(x, P_edge_index, P_weight, q, slice, x_batch):
 
 
 def recover_qp_from_data(data, dtype=np.float32):
+    data = data.to('cpu')
     q = data.q.numpy().astype(dtype)
     b = data.b.numpy().astype(dtype)
     A = SparseTensor(row=data['cons', 'to', 'vals'].edge_index[0],

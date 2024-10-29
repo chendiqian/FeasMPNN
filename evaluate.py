@@ -1,4 +1,5 @@
 import os
+import time
 
 import hydra
 import numpy as np
@@ -12,7 +13,7 @@ from tqdm import tqdm
 from data.collate_func import collate_fn_lp_bi
 from data.dataset import LPDataset
 from data.transforms import GCNNorm
-from data.utils import sync_timer, recover_qp_from_data
+from data.utils import recover_qp_from_data
 from models.cycle_model import CycleGNN
 from models.hetero_gnn import BipartiteHeteroGNN
 from solver.linprog_ip import _ip_hsd_feas
@@ -81,17 +82,20 @@ def main(args: DictConfig):
         pbar = tqdm(dataloader)
         for data in pbar:
             # null space and x_feasible pre-process
-            pre_t1 = sync_timer()
             P, q, A, b, G, h, lb, ub = recover_qp_from_data(data)
+            t0 = time.time()
             _ = null_space(A)
+            t1 = time.time()
+            null_time = t1 - t0
             _ = _ip_hsd_feas(A, b, np.zeros(A.shape[1]), 0.,
-                             alpha0=0.99995, beta=0.1,
-                             maxiter=100, tol=1.e-6, sparse=False,
+                             alpha0=0.9999999, beta=0.1,
+                             maxiter=5, tol=1.e-3, sparse=True,
                              lstsq=False, sym_pos=True, cholesky=None,
                              pc=True, ip=True, permc_spec='MMD_AT_PLUS_A',
-                             rand_start=True)
-            pre_t2 = sync_timer()
-            prep_times.append(pre_t2 - pre_t1)
+                             rand_start=False)
+            t2 = time.time()
+            feas_time = t2 - t1
+            prep_times.append(t2 - t0)
 
             data = data.to(device)
             final_x, best_obj, obj_gaps, time_stamps, cos_sims = model.evaluation(data)
@@ -101,7 +105,9 @@ def main(args: DictConfig):
             gaps.append(best_obj)
             vios.append(Trainer.violate_per_batch(final_x[:, None], data).cpu().numpy())
 
-            stat_dict = {'gap': best_obj.mean(), 'vio': vios[-1]}
+            stat_dict = {'gap': best_obj.mean(),
+                         'vio': vios[-1].mean(),
+                         'feas_time': feas_time, 'null_time': null_time, 'gnn_time': time_stamps[-1]}
             pbar.set_postfix(stat_dict)
             wandb.log(stat_dict)
         gaps = np.concatenate(gaps, axis=0)
@@ -125,7 +131,7 @@ def main(args: DictConfig):
                  "gnn_time_mean": np.mean(gnn_times),
                  "gnn_time_std": np.std(gnn_times)}
 
-    wandb.log(stat_dict)
+    wandb.summary(stat_dict)
 
 
 if __name__ == '__main__':

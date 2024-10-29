@@ -131,7 +131,7 @@ def main(args: DictConfig):
                  "gnn_time_mean": np.mean(gnn_times),
                  "gnn_time_std": np.std(gnn_times)}
 
-    wandb.summary(stat_dict)
+    wandb.log(stat_dict)
 
 
 if __name__ == '__main__':

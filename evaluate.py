@@ -4,16 +4,19 @@ import hydra
 import numpy as np
 import torch
 import wandb
+from omegaconf import DictConfig, OmegaConf
+from scipy.linalg import null_space
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from omegaconf import DictConfig, OmegaConf
 
-from trainer import Trainer
-from data.dataset import LPDataset
 from data.collate_func import collate_fn_lp_bi
+from data.dataset import LPDataset
 from data.transforms import GCNNorm
+from data.utils import sync_timer, recover_qp_from_data
 from models.cycle_model import CycleGNN
 from models.hetero_gnn import BipartiteHeteroGNN
+from solver.linprog_ip import _ip_hsd_feas
+from trainer import Trainer
 
 
 @hydra.main(version_base=None, config_path='./config', config_name="evaluate")
@@ -37,6 +40,8 @@ def main(args: DictConfig):
     best_gnn_obj = []
     gnn_timsteps = []
     gnn_times = []
+    preprocess_times = []
+    total_times = []
     gnn_violations = []
 
     # warmup and set dimensions
@@ -56,8 +61,7 @@ def main(args: DictConfig):
     with torch.no_grad():
         data = next(iter(dataloader)).to(device)
     _ = gnn(data, data.x_start)
-
-    data = None
+    del data
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
@@ -73,8 +77,22 @@ def main(args: DictConfig):
         gaps = []
         vios = []
         times = []
+        prep_times = []
         pbar = tqdm(dataloader)
         for data in pbar:
+            # null space and x_feasible pre-process
+            pre_t1 = sync_timer()
+            P, q, A, b, G, h, lb, ub = recover_qp_from_data(data)
+            _ = null_space(A)
+            _ = _ip_hsd_feas(A, b, np.zeros(A.shape[1]), 0.,
+                             alpha0=0.99995, beta=0.1,
+                             maxiter=100, tol=1.e-6, sparse=False,
+                             lstsq=False, sym_pos=True, cholesky=None,
+                             pc=True, ip=True, permc_spec='MMD_AT_PLUS_A',
+                             rand_start=True)
+            pre_t2 = sync_timer()
+            prep_times.append(pre_t2 - pre_t1)
+
             data = data.to(device)
             final_x, best_obj, obj_gaps, time_stamps, cos_sims = model.evaluation(data)
             gnn_timsteps.append(time_stamps)
@@ -83,7 +101,7 @@ def main(args: DictConfig):
             gaps.append(best_obj)
             vios.append(Trainer.violate_per_batch(final_x[:, None], data).cpu().numpy())
 
-            stat_dict = {'gap': best_obj.mean(), 'time': time_stamps[-1], 'vio': vios[-1]}
+            stat_dict = {'gap': best_obj.mean(), 'vio': vios[-1]}
             pbar.set_postfix(stat_dict)
             wandb.log(stat_dict)
         gaps = np.concatenate(gaps, axis=0)
@@ -91,6 +109,8 @@ def main(args: DictConfig):
         best_gnn_obj.append(np.mean(gaps))
         gnn_violations.append(np.mean(vios))
         gnn_times.append(np.mean(times))
+        preprocess_times.append(np.mean(prep_times))
+        total_times.append(preprocess_times[-1] + gnn_times[-1])
 
     time_per_step_gnn = [i[-1] / args.ipm_eval_steps for i in gnn_timsteps]
 
@@ -100,6 +120,8 @@ def main(args: DictConfig):
                  "gnn_violation_std": np.std(gnn_violations),
                  "gnn_time_per_step_mean": np.mean(time_per_step_gnn),
                  "gnn_time_per_step_std": np.std(time_per_step_gnn),
+                 "total_time_mean": np.mean(total_times),
+                 "total_time_std": np.std(total_times),
                  "gnn_time_mean": np.mean(gnn_times),
                  "gnn_time_std": np.std(gnn_times)}
 

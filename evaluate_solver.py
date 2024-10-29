@@ -35,7 +35,7 @@ if __name__ == '__main__':
 
     pbar = tqdm(dataset)
     for data in pbar:
-        P, q, A, b, G, h, lb, ub = recover_qp_from_data(data)
+        P, q, A, b, G, h, lb, ub = recover_qp_from_data(data, np.float64)
 
         start_t = sync_timer()
         solution = solve_qp(P, q, G, h, A, b, lb=lb, ub=ub, solver="cvxopt")

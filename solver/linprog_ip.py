@@ -85,7 +85,7 @@ def _ip_hsd_feas(A, b, c, c0, alpha0, beta, maxiter, tol, sparse, lstsq,
 
     if sparse:
         A = sps.csc_matrix(A)
-        A.T = A.transpose()  # A.T is defined for sparse matrices but is slow
+        # A.T = A.transpose()  # A.T is defined for sparse matrices but is slow
         # Redefine it to avoid calculating again
         # This is fine as long as A doesn't change
 

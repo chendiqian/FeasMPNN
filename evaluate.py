@@ -24,7 +24,7 @@ def main(args: DictConfig):
                config=OmegaConf.to_container(args, resolve=True, throw_on_missing=True),
                entity="chendiqian")  # use your own entity
 
-    dataset = LPDataset(args.datapath, transform=GCNNorm() if 'gcn' in args.conv else None)[-1000:]
+    dataset = LPDataset(args.datapath, transform=GCNNorm() if 'gcn' in args.conv else None)[-100:]
     if args.debug:
         dataset = dataset[:20]
 
@@ -34,7 +34,6 @@ def main(args: DictConfig):
                             shuffle=False,
                             collate_fn=collate_fn_lp_bi)
 
-    gnn_objgaps = []
     best_gnn_obj = []
     gnn_timsteps = []
     gnn_times = []
@@ -73,24 +72,25 @@ def main(args: DictConfig):
 
         gaps = []
         vios = []
+        times = []
         pbar = tqdm(dataloader)
         for data in pbar:
             data = data.to(device)
             final_x, best_obj, obj_gaps, time_stamps, cos_sims = model.evaluation(data)
             gnn_timsteps.append(time_stamps)
-            gnn_times.append(time_stamps[-1])
-            # gnn_objgaps.append(obj_gaps)
+            times.append(time_stamps[-1])
             best_obj = best_obj.cpu().numpy()
             gaps.append(best_obj)
             vios.append(Trainer.violate_per_batch(final_x[:, None], data).cpu().numpy())
 
-            stat_dict = {'gap': best_obj.mean(), 'time': gnn_times[-1], 'vio': vios[-1]}
+            stat_dict = {'gap': best_obj.mean(), 'time': time_stamps[-1], 'vio': vios[-1]}
             pbar.set_postfix(stat_dict)
             wandb.log(stat_dict)
         gaps = np.concatenate(gaps, axis=0)
         vios = np.concatenate(vios)
         best_gnn_obj.append(np.mean(gaps))
         gnn_violations.append(np.mean(vios))
+        gnn_times.append(np.mean(times))
 
     time_per_step_gnn = [i[-1] / args.ipm_eval_steps for i in gnn_timsteps]
 

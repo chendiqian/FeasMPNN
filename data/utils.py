@@ -100,10 +100,12 @@ def recover_qp_from_data(data, dtype=np.float32):
     A = SparseTensor(row=data['cons', 'to', 'vals'].edge_index[0],
                      col=data['cons', 'to', 'vals'].edge_index[1],
                      value=data['cons', 'to', 'vals'].edge_attr.squeeze(),
+                     sparse_sizes=(data['cons'].num_nodes, data['vals'].num_nodes),
                      is_sorted=True, trust_data=True).to_dense().numpy().astype(dtype)
     P = SparseTensor(row=data['vals', 'to', 'vals'].edge_index[0],
                      col=data['vals', 'to', 'vals'].edge_index[1],
                      value=data['vals', 'to', 'vals'].edge_attr.squeeze(),
+                     sparse_sizes=(data['vals'].num_nodes, data['vals'].num_nodes),
                      is_sorted=True, trust_data=True).to_dense().numpy().astype(dtype)
     # todo: might vary
     lb = np.zeros(A.shape[1]).astype(dtype)

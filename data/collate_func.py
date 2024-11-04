@@ -1,5 +1,3 @@
-import types
-from collections import defaultdict
 from typing import List
 
 import torch
@@ -36,6 +34,9 @@ def collate_fn_lp_base(graphs: List[Data]):
     new_batch[('vals', 'to', 'cons')].edge_attr = new_batch[('cons', 'to', 'vals')].edge_attr
 
     if not hasattr(new_batch[('vals', 'to', 'cons')], 'norm'):
-        new_batch.norm_dict = defaultdict(types.NoneType)
+        norm_dict = {}
+        for k, v in new_batch.edge_index_dict.items():
+            norm_dict[k] = None
+        new_batch.norm_dict = norm_dict
 
     return new_batch

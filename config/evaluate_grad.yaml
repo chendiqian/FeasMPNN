@@ -11,3 +11,4 @@ ipm_eval_steps: 32
 barrier_strength: 3.
 tau: 0.01
 tau_scale: 0.5
+lamb: 10.    # strength of penalty

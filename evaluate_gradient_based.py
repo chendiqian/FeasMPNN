@@ -47,12 +47,16 @@ def main(args: DictConfig):
     for data in pbar:
         # null space and x_feasible pre-process
         P, q, A, b, G, h, lb, ub = recover_qp_from_data(data)
-        P[np.diag(P) == 0.] += 1.e-6
+        # P[np.diag(P) == 0.] += 1.e-6
 
-        P = torch.from_numpy(P).float().to(device)
-        q = torch.from_numpy(q).float().to(device)
+        # use the property of convex quadratic function
+        # f = 0.5 * (x + d) @ P @ (x + d) + q.dot(x + d) + lamb * |A(x + d) - b| ^ 2
+        # 1st order: x + d = inv(P + 2 * lamb * A.T @ A) @ (2 * lamb * A.T @ A - q)
+        rhs = np.linalg.pinv(P + 2 * args.lamb * A.T @ A) @ (2 * args.lamb * A.T @ b - q)
+        rhs = torch.from_numpy(rhs).float().to(device)
+
         data = data.to(device)
-        final_x, best_obj, _, time_stamps = model.evaluation(data, P, q)
+        final_x, best_obj, _, time_stamps = model.evaluation(data, rhs)
 
         times.append(time_stamps[-1])
         best_obj = best_obj.cpu().numpy()

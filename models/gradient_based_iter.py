@@ -23,7 +23,7 @@ class GradSolver(torch.nn.Module):
         self.step_alpha = 1.
 
     @torch.no_grad()
-    def evaluation(self, data, P, q):
+    def evaluation(self, data, rhs):
         # reset
         obj_gaps = []
         time_steps = []
@@ -42,11 +42,7 @@ class GradSolver(torch.nn.Module):
             # prediction
             t_start = sync_timer()
 
-            # use the property of convex quadratic function
-            # f = 0.5 * (x + d) @ P @ (x + d) + q.dot(x + d)
-            # 1st order: P @ (x + d) + q == 0
-            # ==> P @ d = - P @ x - q
-            pred = solve(P, - P @ x_start - q)
+            pred = - x_start + rhs
             # pred = batch_l1_normalize(pred, vals_batch)
             direction = pred + self.barrier_strength * tau / (x_start + tau)
             tau = max(tau * self.tau_scale, 1.e-5)

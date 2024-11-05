@@ -115,3 +115,21 @@ def soft_svm(nums, dims, lamb, density, rng):
     ub = None
     G, h = None, None
     return A, b, G, h, P, q, lb, ub, True
+
+
+def portfolio(n_assets, density, rng):
+    P = make_sparse_spd_matrix(n_dim=n_assets, alpha=1 - density,
+                               smallest_coef=0.1, largest_coef=0.9, random_state=rng).astype(np.float64)
+    P = np.abs(P)
+    q = np.zeros(n_assets, dtype=np.float64)
+
+    A = np.zeros((2, n_assets), dtype=np.float64)
+    A[0] = 1.
+    A[1] = rng.randn(n_assets)
+
+    # we scale b to 100, and the solution becomes ratio in percentage, and does not affect the solution up to a scale
+    b = np.array([1, rng.rand(1).item()], dtype=np.float64) * 100.
+    G, h = None, None
+    lb = np.zeros(n_assets, dtype=np.float64)
+    ub = None
+    return A, b, G, h, P, q, lb, ub, True

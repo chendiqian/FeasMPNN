@@ -125,9 +125,10 @@ def portfolio(n_assets, density, rng):
     A = np.zeros((2, n_assets), dtype=np.float64)
     A[0] = 1.
     A[1] = rng.randn(n_assets)
+    A /= 100.
 
     # we scale b to 100, and the solution becomes ratio in percentage, and does not affect the solution up to a scale
-    b = np.array([1, rng.rand(1).item()], dtype=np.float64) * 100.
+    b = np.array([1, rng.rand(1).item()], dtype=np.float64)
     G, h = None, None
     lb = np.zeros(n_assets, dtype=np.float64)
     ub = None

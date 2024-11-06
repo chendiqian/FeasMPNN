@@ -120,7 +120,6 @@ def soft_svm(nums, dims, lamb, density, rng):
 def portfolio(n_assets, density, rng):
     P = make_sparse_spd_matrix(n_dim=n_assets, alpha=1 - density,
                                smallest_coef=0.1, largest_coef=0.9, random_state=rng).astype(np.float64)
-    P = np.abs(P)
     q = np.zeros(n_assets, dtype=np.float64)
 
     A = np.zeros((2, n_assets), dtype=np.float64)

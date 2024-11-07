@@ -48,8 +48,10 @@ def main(args: DictConfig):
                                    hid_pred=args.hid_pred,
                                    num_mlp_layers=args.num_mlp_layers,
                                    norm=args.norm).to(device)
-    data = next(iter(dataloader)).to(device)
-    _ = model(data)
+    with torch.no_grad():
+        data = next(iter(dataloader)).to(device)
+        for _ in range(20):
+            _ = model(data, data.x_start)
 
     for ckpt in [n for n in os.listdir(args.modelpath) if n.endswith('.pt')]:
         model.load_state_dict(torch.load(os.path.join(args.modelpath, ckpt), map_location=device))

@@ -23,7 +23,7 @@ def main(args: DictConfig):
                config=OmegaConf.to_container(args, resolve=True, throw_on_missing=True),
                entity="chendiqian")  # use your own entity
 
-    dataset = LPDataset(args.datapath, transform=GCNNorm() if 'gcn' in args.conv else None)[-1000:]
+    dataset = LPDataset(args.datapath, transform=GCNNorm() if 'gcn' in args.conv else None)[-100:]
     if args.debug:
         dataset = dataset[:20]
 

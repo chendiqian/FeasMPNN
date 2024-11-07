@@ -50,8 +50,8 @@ def main(args: DictConfig):
                                    norm=args.norm).to(device)
     with torch.no_grad():
         data = next(iter(dataloader)).to(device)
-        for _ in range(20):
-            _ = model(data, data.x_start)
+        for _ in range(10):
+            _ = model(data)
 
     for ckpt in [n for n in os.listdir(args.modelpath) if n.endswith('.pt')]:
         model.load_state_dict(torch.load(os.path.join(args.modelpath, ckpt), map_location=device))

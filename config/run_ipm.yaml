@@ -1,0 +1,34 @@
+wandb:
+  project: default
+  name: ''
+  enable: False
+
+debug: false
+datapath: /work/log1/chendi.qian/qp_400_new
+runs: 1
+losstype: l2
+ckpt: false
+lr: 1.e-3
+weight_decay: 0.
+epoch: 1000
+patience: 100
+batchsize: 32
+val_batchsize: 32
+microbatch: 1
+
+ipm_train_steps: 8
+# todo: for now fix 8
+ipm_eval_steps: 32
+plain_xstarts: false
+eval_every: 1
+conv: gcnconv
+gat:
+  heads: 1
+  concat: false
+hidden: 128
+num_encode_layers: 2
+num_conv_layers: 8
+num_pred_layers: 2
+hid_pred: -1
+num_mlp_layers: 1
+norm: graphnorm

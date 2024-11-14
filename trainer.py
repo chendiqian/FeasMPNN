@@ -211,3 +211,57 @@ class MultiGPUTrainer(Trainer):
 
         lasts = torch.cat(lasts, dim=0).mean()
         return lasts
+
+
+class IPMTrainer(Trainer):
+    def __init__(self,
+                 loss_type,
+                 microbatch):
+        self.best_objgap = 1.e8
+        self.patience = 0
+        self.loss_type = loss_type
+        if loss_type == 'l2':
+            self.loss_func = lambda x: x ** 2
+        elif loss_type == 'l1':
+            self.loss_func = lambda x: x.abs()
+        else:
+            raise ValueError
+        self.microbatch = microbatch
+
+    def train(self, dataloader, model, optimizer):
+        model.train()
+        optimizer.zero_grad()
+
+        train_losses = 0.
+        num_graphs = 0
+        for i, data in enumerate(dataloader):
+            data = data.to(device)
+
+            pred = model(data)  # nnodes x steps
+            loss = self.get_loss(pred, data.trajectory, data['vals'].batch)
+
+            train_losses += loss.detach() * data.num_graphs
+            num_graphs += data.num_graphs
+
+            loss = loss / self.microbatch
+            loss.backward()
+            if (i + 1) % self.microbatch == 0 or (i + 1) == len(dataloader):
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, error_if_nonfinite=True)
+                optimizer.step()
+                optimizer.zero_grad()
+
+        return (train_losses / num_graphs).item()
+
+    @torch.no_grad()
+    def eval(self, dataloader, model):
+        model.eval()
+
+        objs = []
+        for i, data in enumerate(dataloader):
+            data = data.to(device)
+            _, best_obj_gap, _ = model.evaluation(data)
+            objs.append(best_obj_gap)
+
+        objs = torch.cat(objs, dim=0).mean().item()
+
+        return objs

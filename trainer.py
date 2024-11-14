@@ -265,3 +265,47 @@ class IPMTrainer(Trainer):
         objs = torch.cat(objs, dim=0).mean().item()
 
         return objs
+
+
+class MultiGPUIPMTrainer(IPMTrainer):
+    def __init__(self,
+                 loss_type,
+                 microbatch):
+        super().__init__(loss_type, microbatch)
+
+    def train(self, dataloader, model, optimizer, local_device):
+        model.train()
+        optimizer.zero_grad()
+
+        train_losses = 0.
+        num_graphs = 0
+        for i, data in enumerate(dataloader):
+            data = data.to(local_device)
+
+            pred = model(data)  # nnodes x steps
+            loss = self.get_loss(pred, data.trajectory, data['vals'].batch)
+
+            train_losses += loss.detach() * data.num_graphs
+            num_graphs += data.num_graphs
+
+            loss = loss / self.microbatch
+            loss.backward()
+            if (i + 1) % self.microbatch == 0 or (i + 1) == len(dataloader):
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, error_if_nonfinite=True)
+                optimizer.step()
+                optimizer.zero_grad()
+
+        return train_losses / num_graphs
+
+    @torch.no_grad()
+    def eval(self, dataloader, model, local_device):
+        model.eval()
+
+        objs = []
+        for i, data in enumerate(dataloader):
+            data = data.to(local_device)
+            _, best_obj_gap, _ = model.evaluation(data)
+            objs.append(best_obj_gap)
+
+        objs = torch.cat(objs, dim=0).mean()
+        return objs

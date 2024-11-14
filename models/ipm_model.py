@@ -34,7 +34,7 @@ class IPMGNN(torch.nn.Module):
     def evaluation(self, data):
         # reset
         time_steps = []
-        x_start = data.trajectory[:, 0].clone()
+        x_start = data.x_feasible.clone()
         current_best_x = x_start
         opt_obj = data.obj_solution
         vals_batch = data['vals'].batch

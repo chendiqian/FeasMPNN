@@ -20,7 +20,7 @@ microbatch: 1
 ipm_train_steps: 8
 # todo: for now fix 8
 ipm_eval_steps: 32
-plain_xstarts: false
+plain_xstarts: true
 eval_every: 1
 conv: gcnconv
 gat:

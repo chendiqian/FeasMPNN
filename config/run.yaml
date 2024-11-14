@@ -11,7 +11,7 @@ ckpt: false
 lr: 1.e-3
 weight_decay: 0.
 epoch: 1000
-patience: 100
+patience: 300
 batchsize: 32
 val_batchsize: 128
 num_workers: 1

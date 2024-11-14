@@ -24,7 +24,7 @@ from data.utils import save_run_config
 logging.basicConfig(level=logging.INFO, format="{asctime} - {message}", style="{", datefmt="%Y-%m-%d %H:%M:%S")
 
 
-@hydra.main(version_base=None, config_path='./config', config_name="multigpu")
+@hydra.main(version_base=None, config_path='./config', config_name="run")
 def main(args: DictConfig):
     world_size = int(os.environ['WORLD_SIZE'])  # Total number of processes
     rank = int(os.environ['RANK'])  # Rank of the current process

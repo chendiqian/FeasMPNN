@@ -13,19 +13,20 @@ weight_decay: 0.
 epoch: 1000
 patience: 100
 batchsize: 32
-val_batchsize: 32
+val_batchsize: 128
+num_workers: 1
 microbatch: 1
 coeff_l2: 1.
-coeff_cos: 1.
+coeff_cos: 0.1
 
-ipm_train_steps: 8
+ipm_train_steps: 4
 train_frac: 1.
 ipm_eval_steps: 32
 barrier_strength: 3.
 tau: 0.01
 tau_scale: 0.5
 plain_xstarts: false
-eval_every: 1
+eval_every: 2
 conv: gcnconv
 gat:
   heads: 1

@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from torch_geometric.utils import to_dense_batch
 from data.utils import sync_timer, qp_obj
-from solver.line_search import batch_line_search
+from solver.line_search import batch_line_search, convex_line_search
 from trainer import Trainer
 
 
@@ -119,8 +119,15 @@ class CycleGNN(torch.nn.Module):
                 direction = torch.einsum('bnf,bn->bf', data.proj_matrix, direction)  # batchsize x Nmax x Neigs
                 pred = torch.einsum('bnf,bf->bn', data.proj_matrix, direction)[nmask]
 
+            # min 0.5 (x + a * d)^T Q (x + a * d) + c^T(x + a * d)
+            # => a = - (d^T Q x + c^T d) / (d^T Q d)
+            # alpha1 = convex_line_search(
+            #     pred, x_start, P_edge_index, P_weight, data.q, P_edge_slice, vals_batch, 0.5, 5.)
+
             # line search
             alpha = batch_line_search(x_start, pred, vals_batch, self.step_alpha) * 0.995
+            # alpha = torch.min(alpha, alpha1)
+
             # update
             x_start = x_start + alpha * pred
             t_end = sync_timer()

@@ -30,8 +30,10 @@ def collate_fn_lp_base(graphs: List[Data]):
     new_batch = Batch.from_data_list(graphs, exclude_keys=['x', 'nulls'])  # we drop the dumb x features
     # finish the half of symmetric edges
     flip_tensor = torch.tensor([1, 0])
-    new_batch[('vals', 'to', 'cons')].edge_index = new_batch[('cons', 'to', 'vals')].edge_index[flip_tensor]
-    new_batch[('vals', 'to', 'cons')].edge_attr = new_batch[('cons', 'to', 'vals')].edge_attr
+    for k, v in graphs[0].edge_index_dict.items():
+        src, rel, dst = k
+        new_batch[(dst, rel, src)].edge_index = new_batch[(src, rel, dst)].edge_index[flip_tensor]
+        new_batch[(dst, rel, src)].edge_attr = new_batch[(src, rel, dst)].edge_attr
 
     if not hasattr(new_batch[('vals', 'to', 'cons')], 'norm'):
         norm_dict = {}

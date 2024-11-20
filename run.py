@@ -14,7 +14,7 @@ from data.dataset import LPDataset
 from data.collate_func import collate_fn_lp_bi
 from data.transforms import GCNNorm
 from data.prefetch_generator import BackgroundGenerator
-from models.hetero_gnn import TripartiteHeteroGNN, BipartiteHeteroGNN
+from models.hetero_gnn import BipartiteHeteroGNN
 from models.cycle_model import CycleGNN
 from trainer import Trainer
 from data.utils import save_run_config

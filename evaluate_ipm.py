@@ -12,7 +12,7 @@ from data.collate_func import collate_fn_lp_base
 from data.dataset import LPDataset
 from data.transforms import GCNNorm
 from models.ipm_model import IPMGNN
-from models.hetero_gnn import BipartiteHeteroGNN
+from models.hetero_gnn import TripartiteHeteroGNN
 from trainer import Trainer
 
 
@@ -40,17 +40,17 @@ def main(args: DictConfig):
     gnn_violations = []
 
     # warmup and set dimensions
-    gnn = BipartiteHeteroGNN(conv=args.conv,
-                             head=args.gat.heads,
-                             concat=args.gat.concat,
-                             hid_dim=args.hidden,
-                             num_encode_layers=args.num_encode_layers,
-                             num_conv_layers=args.num_conv_layers,
-                             num_pred_layers=args.num_pred_layers,
-                             hid_pred=args.hid_pred,
-                             num_mlp_layers=args.num_mlp_layers,
-                             norm=args.norm,
-                             plain_xstarts=args.plain_xstarts)
+    gnn = TripartiteHeteroGNN(conv=args.conv,
+                              head=args.gat.heads,
+                              concat=args.gat.concat,
+                              hid_dim=args.hidden,
+                              num_encode_layers=args.num_encode_layers,
+                              num_conv_layers=args.num_conv_layers,
+                              num_pred_layers=args.num_pred_layers,
+                              hid_pred=args.hid_pred,
+                              num_mlp_layers=args.num_mlp_layers,
+                              norm=args.norm,
+                              plain_xstarts=args.plain_xstarts)
     model = IPMGNN(1, args.ipm_eval_steps, gnn).to(device)
 
     # warm up
@@ -81,7 +81,6 @@ def main(args: DictConfig):
         times = []
         pbar = tqdm(dataloader)
         for data in pbar:
-
             data = data.to(device)
             final_x, best_obj, time_stamps = model.evaluation(data)
             gnn_timsteps.append(time_stamps)

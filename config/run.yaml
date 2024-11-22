@@ -19,7 +19,7 @@ microbatch: 1
 coeff_l2: 1.
 coeff_cos: 0.1
 
-ipm_train_steps: 4
+ipm_train_steps: 8
 train_frac: 1.
 ipm_eval_steps: 32
 barrier_strength: 3.

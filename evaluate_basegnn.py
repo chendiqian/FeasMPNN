@@ -10,7 +10,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from data.transforms import GCNNorm
 from data.dataset import LPDataset
-from data.collate_func import collate_fn_lp_bi
+from data.collate_func import collate_fn_lp_base
 from data.utils import sync_timer
 from models.plain_gnn import BaseBipartiteHeteroGNN
 
@@ -31,7 +31,7 @@ def main(args: DictConfig):
     dataloader = DataLoader(dataset,
                             batch_size=1,
                             shuffle=False,
-                            collate_fn=collate_fn_lp_bi)
+                            collate_fn=collate_fn_lp_base)
 
     gnn_times = []
     best_gnn_obj = []

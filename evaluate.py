@@ -14,8 +14,8 @@ from data.collate_func import collate_fn_lp_bi
 from data.dataset import LPDataset
 from data.transforms import GCNNorm
 from data.utils import recover_qp_from_data
-from models.cycle_model import CycleGNN
-from models.hetero_gnn import BipartiteHeteroGNN
+from models.feasible_unroll_model import FeasibleUnrollGNN
+from models.base_hetero_gnn import BipartiteHeteroGNN
 from solver.linprog_ip import _ip_hsd_feas
 from trainer import Trainer
 
@@ -57,8 +57,8 @@ def main(args: DictConfig):
                              num_mlp_layers=args.num_mlp_layers,
                              norm=args.norm,
                              plain_xstarts=args.plain_xstarts)
-    model = CycleGNN(1, 1., args.ipm_eval_steps, gnn,
-                     args.barrier_strength, args.tau, args.tau_scale).to(device)
+    model = FeasibleUnrollGNN(1, 1., args.ipm_eval_steps, gnn,
+                              args.barrier_strength, args.tau, args.tau_scale).to(device)
 
     # warm up
     with torch.no_grad():
@@ -121,7 +121,7 @@ def main(args: DictConfig):
             times.append(time_stamps[-1])
             best_obj = best_obj.cpu().numpy()
             gaps.append(best_obj)
-            vios.append(Trainer.violate_per_batch(final_x[:, None], data).cpu().numpy())
+            vios.append(Trainer.violate_per_batch(final_x, data).cpu().numpy())
 
             stat_dict = {'gap': best_obj.mean(),
                          'vio': vios[-1].mean(),

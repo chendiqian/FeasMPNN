@@ -1,51 +1,37 @@
-from typing import Dict, Optional
-
 import torch
-from torch_geometric.typing import EdgeType, NodeType
 
 from data.utils import qp_obj
-from models.hetero_gnn import BipartiteHeteroGNN
+from models.base_hetero_gnn import BipartiteHeteroGNN, TripartiteHeteroGNN
 from trainer import Trainer
 
 
-class BaseBipartiteHeteroGNN(BipartiteHeteroGNN):
-    # def __init__(self, *args, **kwargs):
-    #     super().__init__(*args, **kwargs, encode_start_x=False)
+class PlainBipartiteHeteroGNN(BipartiteHeteroGNN):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, encode_start_x=False)
 
-    def forward(self, data):
-        batch_dict: Dict[NodeType, torch.LongTensor] = data.batch_dict
-        edge_index_dict: Dict[EdgeType, torch.LongTensor] = data.edge_index_dict
-        edge_attr_dict: Dict[EdgeType, torch.FloatTensor] = data.edge_attr_dict
-        norm_dict: Dict[EdgeType, Optional[torch.FloatTensor]] = data.norm_dict
+    @torch.no_grad()
+    def evaluation(self, data):
+        opt_obj = data.obj_solution
 
-        cons_embedding = self.b_encoder(data.b[:, None])
-        vals_embedding = self.q_encoder(data.q[:, None])
+        # prediction, hard non-negative
+        pred_x = self.forward(data).relu()  # (nnodes,)
 
-        x_dict: Dict[NodeType, torch.FloatTensor] = {'vals': vals_embedding,
-                                                     'cons': cons_embedding}
-        x0_dict: Dict[NodeType, torch.FloatTensor] = {'vals': vals_embedding,
-                                                      'cons': cons_embedding}
+        batch_obj = qp_obj(pred_x, data)
+        batch_violation = Trainer.violate_per_batch(pred_x, data)
+        return pred_x, torch.abs((opt_obj - batch_obj) / opt_obj), batch_violation
 
-        for i in range(self.num_layers):
-            x_dict = self.gcns[i](x_dict, x0_dict, batch_dict, edge_index_dict, edge_attr_dict, norm_dict)
 
-        x = self.predictor(x_dict['vals'])
-        if not self.training:
-            x = torch.relu(x)  # hard non negative
-        return x, data.x_solution[:, None]
+class PlainTripartiteHeteroGNN(TripartiteHeteroGNN):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, encode_start_x=False)
 
     @torch.no_grad()
     def evaluation(self, data):
         opt_obj = data.obj_solution
 
         # prediction
-        pred_x = self.forward(data)[0]   # nnodes, 1
+        pred_x = self.forward(data).relu()  # (nnodes,)
 
-        vals_batch = data['vals'].batch
-        P_edge_index = data.edge_index_dict[('vals', 'to', 'vals')]
-        P_weight = data.edge_attr_dict[('vals', 'to', 'vals')].squeeze()
-        P_edge_slice = data._slice_dict[('vals', 'to', 'vals')]['edge_index'].to(pred_x.device)
-
-        batch_obj = qp_obj(pred_x.squeeze(1), P_edge_index, P_weight, data.q, P_edge_slice, vals_batch)
+        batch_obj = qp_obj(pred_x, data)
         batch_violation = Trainer.violate_per_batch(pred_x, data)
         return pred_x, torch.abs((opt_obj - batch_obj) / opt_obj), batch_violation

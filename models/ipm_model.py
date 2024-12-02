@@ -5,7 +5,7 @@ import torch
 from torch_geometric.typing import NodeType, EdgeType
 
 from data.utils import sync_timer, qp_obj
-from models.hetero_gnn import TripartiteHeteroGNN
+from models.base_hetero_gnn import TripartiteHeteroGNN
 from trainer import Trainer
 
 
@@ -42,10 +42,7 @@ class IPMGNN(torch.nn.Module):
         current_best_x = x_start
         opt_obj = data.obj_solution
         vals_batch = data['vals'].batch
-        P_edge_index = data.edge_index_dict[('vals', 'to', 'vals')]
-        P_weight = data.edge_attr_dict[('vals', 'to', 'vals')].squeeze()
-        P_edge_slice = data._slice_dict[('vals', 'to', 'vals')]['edge_index'].to(x_start.device)
-        current_obj = qp_obj(current_best_x, P_edge_index, P_weight, data.q, P_edge_slice, vals_batch)
+        current_obj = qp_obj(current_best_x, data)
         current_best_rel_obj_gap = torch.abs((opt_obj - current_obj) / opt_obj)
 
         for i in range(self.num_val_steps):
@@ -57,7 +54,7 @@ class IPMGNN(torch.nn.Module):
             # update
             x_start = pred
 
-            current_obj = qp_obj(x_start, P_edge_index, P_weight, data.q, P_edge_slice, vals_batch)
+            current_obj = qp_obj(x_start, data)
             # unlike our method, here we DON'T have strict feasible solution, we use the absolute value of the error
 
             current_rel_obj_gap = torch.abs((opt_obj - current_obj) / opt_obj)
@@ -133,11 +130,6 @@ class FixStepIPMGNN(TripartiteHeteroGNN):
         # prediction
         pred_x = self.forward(data, True).relu()
 
-        vals_batch = data['vals'].batch
-        P_edge_index = data.edge_index_dict[('vals', 'to', 'vals')]
-        P_weight = data.edge_attr_dict[('vals', 'to', 'vals')].squeeze()
-        P_edge_slice = data._slice_dict[('vals', 'to', 'vals')]['edge_index'].to(pred_x.device)
-
-        batch_obj = qp_obj(pred_x, P_edge_index, P_weight, data.q, P_edge_slice, vals_batch)
-        batch_violation = Trainer.violate_per_batch(pred_x[:, None], data)
+        batch_obj = qp_obj(pred_x, data)
+        batch_violation = Trainer.violate_per_batch(pred_x, data)
         return pred_x, torch.abs((opt_obj - batch_obj) / opt_obj), batch_violation

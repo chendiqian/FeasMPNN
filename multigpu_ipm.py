@@ -16,7 +16,7 @@ from omegaconf import DictConfig, OmegaConf
 from data.dataset import LPDataset
 from data.collate_func import collate_fn_lp_base
 from data.transforms import GCNNorm
-from models.hetero_gnn import TripartiteHeteroGNN
+from models.base_hetero_gnn import TripartiteHeteroGNN
 from models.ipm_model import IPMGNN
 from trainer import MultiGPUIPMTrainer
 from data.utils import save_run_config

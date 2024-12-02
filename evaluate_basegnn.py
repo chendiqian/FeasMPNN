@@ -12,7 +12,7 @@ from data.transforms import GCNNorm
 from data.dataset import LPDataset
 from data.collate_func import collate_fn_lp_base
 from data.utils import sync_timer
-from models.plain_gnn import BaseBipartiteHeteroGNN
+from models.plain_gnn import PlainBipartiteHeteroGNN, PlainTripartiteHeteroGNN
 
 
 @hydra.main(version_base=None, config_path='./config', config_name="eval_base")
@@ -38,16 +38,17 @@ def main(args: DictConfig):
     gnn_violations = []
 
     # warmup and set dimensions
-    model = BaseBipartiteHeteroGNN(conv=args.conv,
-                                   head=args.gat.heads,
-                                   concat=args.gat.concat,
-                                   hid_dim=args.hidden,
-                                   num_encode_layers=args.num_encode_layers,
-                                   num_conv_layers=args.num_conv_layers,
-                                   num_pred_layers=args.num_pred_layers,
-                                   hid_pred=args.hid_pred,
-                                   num_mlp_layers=args.num_mlp_layers,
-                                   norm=args.norm).to(device)
+    ModelClass = PlainTripartiteHeteroGNN if args.tripartite else PlainBipartiteHeteroGNN
+    model = ModelClass(conv=args.conv,
+                       head=args.gat.heads,
+                       concat=args.gat.concat,
+                       hid_dim=args.hidden,
+                       num_encode_layers=args.num_encode_layers,
+                       num_conv_layers=args.num_conv_layers,
+                       num_pred_layers=args.num_pred_layers,
+                       hid_pred=args.hid_pred,
+                       num_mlp_layers=args.num_mlp_layers,
+                       norm=args.norm).to(device)
     with torch.no_grad():
         data = next(iter(dataloader)).to(device)
         for _ in range(10):

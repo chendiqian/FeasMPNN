@@ -15,7 +15,7 @@ from data.dataset import LPDataset
 from data.collate_func import collate_fn_lp_base
 from data.transforms import GCNNorm
 from data.prefetch_generator import BackgroundGenerator
-from models.plain_gnn import BaseBipartiteHeteroGNN
+from models.plain_gnn import PlainBipartiteHeteroGNN, PlainTripartiteHeteroGNN
 from trainer import PlainGNNTrainer
 from data.utils import save_run_config
 
@@ -54,16 +54,17 @@ def main(args: DictConfig):
     test_violations = []
 
     for run in range(args.runs):
-        model = BaseBipartiteHeteroGNN(conv=args.conv,
-                                       head=args.gat.heads,
-                                       concat=args.gat.concat,
-                                       hid_dim=args.hidden,
-                                       num_encode_layers=args.num_encode_layers,
-                                       num_conv_layers=args.num_conv_layers,
-                                       num_pred_layers=args.num_pred_layers,
-                                       hid_pred=args.hid_pred,
-                                       num_mlp_layers=args.num_mlp_layers,
-                                       norm=args.norm).to(device)
+        ModelClass = PlainTripartiteHeteroGNN if args.tripartite else PlainBipartiteHeteroGNN
+        model = ModelClass(conv=args.conv,
+                           head=args.gat.heads,
+                           concat=args.gat.concat,
+                           hid_dim=args.hidden,
+                           num_encode_layers=args.num_encode_layers,
+                           num_conv_layers=args.num_conv_layers,
+                           num_pred_layers=args.num_pred_layers,
+                           hid_pred=args.hid_pred,
+                           num_mlp_layers=args.num_mlp_layers,
+                           norm=args.norm).to(device)
         best_model = copy.deepcopy(model.state_dict())
 
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)

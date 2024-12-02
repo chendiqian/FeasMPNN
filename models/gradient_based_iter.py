@@ -32,11 +32,7 @@ class GradSolver(torch.nn.Module):
         current_best_x = x_start
         opt_obj = data.obj_solution
         vals_batch = data['vals'].batch
-        P_edge_index = data.edge_index_dict[('vals', 'to', 'vals')]
-        P_weight = data.edge_attr_dict[('vals', 'to', 'vals')].squeeze()
-        P_edge_slice = data._slice_dict[('vals', 'to', 'vals')]['edge_index'].to(x_start.device)
-        # current_best_obj = qp_obj(current_best_x, data.S, data.q, vals_batch)
-        current_best_obj = qp_obj(current_best_x, P_edge_index, P_weight, data.q, P_edge_slice, vals_batch)
+        current_best_obj = qp_obj(current_best_x, data)
 
         for i in range(self.num_eval_steps):
             # prediction
@@ -61,8 +57,7 @@ class GradSolver(torch.nn.Module):
             x_start = x_start + alpha * pred
             t_end = sync_timer()
 
-            # current_obj = qp_obj(x_start, data.S, data.q, vals_batch)
-            current_obj = qp_obj(x_start, P_edge_index, P_weight, data.q, P_edge_slice, vals_batch)
+            current_obj = qp_obj(x_start, data)
             # since we have strict feasible solution, we use the value obj
             better_mask = current_obj < current_best_obj
             current_best_obj = torch.where(better_mask, current_obj, current_best_obj)

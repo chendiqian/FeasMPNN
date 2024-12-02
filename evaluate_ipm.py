@@ -12,7 +12,7 @@ from data.collate_func import collate_fn_lp_base
 from data.dataset import LPDataset
 from data.transforms import GCNNorm
 from models.ipm_model import IPMGNN
-from models.hetero_gnn import TripartiteHeteroGNN
+from models.base_hetero_gnn import TripartiteHeteroGNN
 from trainer import Trainer
 
 
@@ -87,7 +87,7 @@ def main(args: DictConfig):
             times.append(time_stamps[-1])
             best_obj = best_obj.cpu().numpy()
             gaps.append(best_obj)
-            vios.append(Trainer.violate_per_batch(final_x[:, None], data).cpu().numpy())
+            vios.append(Trainer.violate_per_batch(final_x, data).cpu().numpy())
 
             stat_dict = {'gap': best_obj.mean(),
                          'vio': vios[-1].mean(),

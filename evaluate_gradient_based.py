@@ -61,7 +61,7 @@ def main(args: DictConfig):
         times.append(time_stamps[-1])
         best_obj = best_obj.cpu().numpy()
         gaps.append(best_obj)
-        vios.append(Trainer.violate_per_batch(final_x[:, None], data).cpu().numpy())
+        vios.append(Trainer.violate_per_batch(final_x, data).cpu().numpy())
 
         stat_dict = {'gap': best_obj.mean(),
                      'vio': vios[-1].mean(),

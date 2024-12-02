@@ -14,8 +14,8 @@ from data.dataset import LPDataset
 from data.collate_func import collate_fn_lp_bi
 from data.transforms import GCNNorm
 from data.prefetch_generator import BackgroundGenerator
-from models.hetero_gnn import BipartiteHeteroGNN
-from models.cycle_model import CycleGNN
+from models.base_hetero_gnn import BipartiteHeteroGNN
+from models.feasible_unroll_model import FeasibleUnrollGNN
 from trainer import Trainer
 from data.utils import save_run_config
 
@@ -63,11 +63,11 @@ def main(args: DictConfig):
                                  num_mlp_layers=args.num_mlp_layers,
                                  norm=args.norm,
                                  plain_xstarts=args.plain_xstarts)
-        model = CycleGNN(args.ipm_train_steps,
-                         args.train_frac,
-                         args.ipm_eval_steps,
-                         gnn,
-                         args.barrier_strength, args.tau, args.tau_scale).to(device)
+        model = FeasibleUnrollGNN(args.ipm_train_steps,
+                                  args.train_frac,
+                                  args.ipm_eval_steps,
+                                  gnn,
+                                  args.barrier_strength, args.tau, args.tau_scale).to(device)
         best_model = copy.deepcopy(model.state_dict())
 
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)

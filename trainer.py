@@ -1,8 +1,6 @@
-import numpy as np
 import torch
 from torch_geometric.utils import to_dense_batch, scatter
 from torch_sparse import spmm
-from data.utils import qp_obj
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 cos_metric = torch.nn.CosineEmbeddingLoss(reduction='none')
@@ -98,6 +96,11 @@ class Trainer:
 
     @classmethod
     def violate_per_batch(cls, pred, data) -> torch.Tensor:
+        assert pred.dim() <= 2
+        if pred.dim() == 2:
+            assert pred.shape[1] == 1
+        if pred.dim() == 1:
+            pred = pred[:, None]
         Ax_minus_b = spmm(data['cons', 'to', 'vals'].edge_index,
                           data['cons', 'to', 'vals'].edge_attr.squeeze(),
                           data['cons'].num_nodes, data['vals'].num_nodes, pred).squeeze() - data.b
@@ -121,7 +124,8 @@ class PlainGNNTrainer(Trainer):
         for i, data in enumerate(dataloader):
             data = data.to(device)
 
-            pred, label = model(data)  # nnodes x steps
+            pred = model(data)
+            label = data.x_solution
             loss = self.get_loss(pred, label, data['vals'].batch)
             loss_vio = (self.violate_per_batch(pred, data) ** 2).mean()
 

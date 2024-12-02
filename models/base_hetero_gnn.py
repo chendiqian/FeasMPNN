@@ -4,12 +4,12 @@ import torch
 from torch_geometric.nn import MLP
 from torch_geometric.typing import EdgeType, NodeType
 
-from models.genconv import GENConv
-from models.gcnconv import GCNConv
-from models.ginconv import GINEConv
-from models.gcn2conv import GCN2Conv
-from models.gatconv import GATv2Conv
-from models.hetero_conv import BipartiteConv, TripartiteConv
+from models.convs.genconv import GENConv
+from models.convs.gcnconv import GCNConv
+from models.convs.ginconv import GINEConv
+from models.convs.gcn2conv import GCN2Conv
+from models.convs.gatconv import GATv2Conv
+from models.base_hetero_conv import BipartiteConv, TripartiteConv
 from models.nn_utils import LogEncoder
 
 
@@ -96,14 +96,16 @@ class BipartiteHeteroGNN(torch.nn.Module):
             hid_pred = hid_dim
         self.predictor = MLP([hid_dim] + [hid_pred] * num_pred_layers + [1], norm=None)
 
-    def forward(self, data, x_start):
+    def forward(self, data, x_start=None):
         batch_dict: Dict[NodeType, torch.LongTensor] = data.batch_dict
         edge_index_dict: Dict[EdgeType, torch.LongTensor] = data.edge_index_dict
         edge_attr_dict: Dict[EdgeType, torch.FloatTensor] = data.edge_attr_dict
         norm_dict: Dict[EdgeType, Optional[torch.FloatTensor]] = data.norm_dict
 
         cons_embedding = self.b_encoder(data.b[:, None])
-        vals_embedding = self.start_pos_encoder(x_start[:, None]) + self.q_encoder(data.q[:, None])
+        vals_embedding = self.q_encoder(data.q[:, None])
+        if x_start is not None and self.start_pos_encoder is not None:
+            vals_embedding = vals_embedding + self.start_pos_encoder(x_start[:, None])
 
         x_dict: Dict[NodeType, torch.FloatTensor] = {'vals': vals_embedding,
                                                      'cons': cons_embedding}
@@ -163,14 +165,16 @@ class TripartiteHeteroGNN(torch.nn.Module):
             hid_pred = hid_dim
         self.predictor = MLP([hid_dim] + [hid_pred] * num_pred_layers + [1], norm=None)
 
-    def forward(self, data, x_start):
+    def forward(self, data, x_start=None):
         batch_dict: Dict[NodeType, torch.LongTensor] = data.batch_dict
         edge_index_dict: Dict[EdgeType, torch.LongTensor] = data.edge_index_dict
         edge_attr_dict: Dict[EdgeType, torch.FloatTensor] = data.edge_attr_dict
         norm_dict: Dict[EdgeType, Optional[torch.FloatTensor]] = data.norm_dict
 
         cons_embedding = self.b_encoder(data.b[:, None])
-        vals_embedding = self.start_pos_encoder(x_start[:, None]) + self.q_encoder(data.q[:, None])
+        vals_embedding = self.q_encoder(data.q[:, None])
+        if x_start is not None and self.start_pos_encoder is not None:
+            vals_embedding = vals_embedding + self.start_pos_encoder(x_start[:, None])
 
         x_dict: Dict[NodeType, torch.FloatTensor] = {
             'vals': vals_embedding,

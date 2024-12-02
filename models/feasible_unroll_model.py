@@ -1,17 +1,19 @@
 import numpy as np
 import torch
 from torch_geometric.utils import to_dense_batch
+
 from data.utils import sync_timer, qp_obj
-from solver.line_search import batch_line_search, convex_line_search
+from models.base_hetero_gnn import BipartiteHeteroGNN
+from solver.line_search import batch_line_search
 from trainer import Trainer
 
 
-class CycleGNN(torch.nn.Module):
+class FeasibleUnrollGNN(torch.nn.Module):
     def __init__(self,
                  num_steps: int,
                  train_frac: float,
                  num_eval_steps: int,
-                 gnn: torch.nn.Module,
+                 gnn: BipartiteHeteroGNN,
                  barrier_strength: float,
                  init_tau: float,
                  tau_scale: float):
@@ -90,11 +92,7 @@ class CycleGNN(torch.nn.Module):
         current_best_x = x_start
         opt_obj = data.obj_solution
         vals_batch = data['vals'].batch
-        P_edge_index = data.edge_index_dict[('vals', 'to', 'vals')]
-        P_weight = data.edge_attr_dict[('vals', 'to', 'vals')].squeeze()
-        P_edge_slice = data._slice_dict[('vals', 'to', 'vals')]['edge_index'].to(x_start.device)
-        # current_best_obj = qp_obj(current_best_x, data.S, data.q, vals_batch)
-        current_best_obj = qp_obj(current_best_x, P_edge_index, P_weight, data.q, P_edge_slice, vals_batch)
+        current_best_obj = qp_obj(current_best_x, data)
 
         x_starts = []
         preds = []
@@ -132,8 +130,7 @@ class CycleGNN(torch.nn.Module):
             x_start = x_start + alpha * pred
             t_end = sync_timer()
 
-            # current_obj = qp_obj(x_start, data.S, data.q, vals_batch)
-            current_obj = qp_obj(x_start, P_edge_index, P_weight, data.q, P_edge_slice, vals_batch)
+            current_obj = qp_obj(x_start, data)
             # since we have strict feasible solution, we use the value obj
             better_mask = current_obj < current_best_obj
             current_best_obj = torch.where(better_mask, current_obj, current_best_obj)

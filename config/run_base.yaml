@@ -18,6 +18,7 @@ coeff_obj: 1.
 coeff_vio: 1.
 
 eval_every: 1
+tripartite: false
 conv: gcnconv
 gat:
   heads: 1

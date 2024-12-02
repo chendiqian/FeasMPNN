@@ -81,9 +81,14 @@ def project_solution(pred, A, b):
 #     return scatter(Q.sum(0) * 0.5 + q * x, batch, reduce='sum')
 
 
-def qp_obj(x, P_edge_index, P_weight, q, slice, x_batch):
-    # new_batch._slice_dict[('vals', 'to', 'vals')]['edge_index']
-    edge_batch = slice[1:] - slice[:-1]
+def qp_obj(x, data):
+    x_batch = data['vals'].batch
+    P_edge_index = data.edge_index_dict[('vals', 'to', 'vals')]
+    P_weight = data.edge_attr_dict[('vals', 'to', 'vals')].squeeze()
+    P_edge_slice = data._slice_dict[('vals', 'to', 'vals')]['edge_index'].to(x.device)
+    q = data.q
+
+    edge_batch = P_edge_slice[1:] - P_edge_slice[:-1]
     if x.dim() > 1:
         P_weight = P_weight[:, None]
         q = q[:, None]

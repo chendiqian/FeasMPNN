@@ -1,7 +1,11 @@
+from typing import Dict, Optional
+
 import numpy as np
 import torch
-from torch_geometric.utils import to_dense_batch
+from torch_geometric.typing import NodeType, EdgeType
+
 from data.utils import sync_timer, qp_obj
+from models.hetero_gnn import TripartiteHeteroGNN
 from trainer import Trainer
 
 
@@ -67,3 +71,73 @@ class IPMGNN(torch.nn.Module):
         time_steps = np.cumsum(time_steps, axis=0)
 
         return current_best_x, current_best_rel_obj_gap, time_steps
+
+
+class FixStepIPMGNN(TripartiteHeteroGNN):
+    def __init__(self,
+                 conv,
+                 head,
+                 concat,
+                 hid_dim,
+                 num_encode_layers,
+                 num_conv_layers,
+                 num_pred_layers,
+                 hid_pred,
+                 num_mlp_layers,
+                 norm):
+        super().__init__(conv,
+                         head,
+                         concat,
+                         hid_dim,
+                         num_encode_layers,
+                         num_conv_layers,
+                         num_pred_layers,
+                         hid_pred,
+                         num_mlp_layers,
+                         norm, False, False)
+
+    def forward(self, data, last_layer=False):
+        batch_dict: Dict[NodeType, torch.LongTensor] = data.batch_dict
+        edge_index_dict: Dict[EdgeType, torch.LongTensor] = data.edge_index_dict
+        edge_attr_dict: Dict[EdgeType, torch.FloatTensor] = data.edge_attr_dict
+        norm_dict: Dict[EdgeType, Optional[torch.FloatTensor]] = data.norm_dict
+
+        cons_embedding = self.b_encoder(data.b[:, None])
+        vals_embedding = self.q_encoder(data.q[:, None])
+
+        x_dict: Dict[NodeType, torch.FloatTensor] = {
+            'vals': vals_embedding,
+            'cons': cons_embedding,
+            # dumb initialization
+            'obj': vals_embedding.new_zeros(data['obj'].num_nodes, vals_embedding.shape[1])}
+        x0_dict: Dict[NodeType, torch.FloatTensor] = {'vals': vals_embedding,
+                                                      'cons': cons_embedding,
+                                                      'obj': x_dict['obj']}
+
+        preds = []
+        for i in range(self.num_layers):
+            x_dict = self.gcns[i](x_dict, x0_dict, batch_dict, edge_index_dict, edge_attr_dict, norm_dict)
+            preds.append(x_dict['vals'])
+
+        if last_layer:
+            preds = preds[-1]
+        else:
+            preds = torch.stack(preds, dim=1)  # vals * steps * feature
+        preds = self.predictor(preds)
+        return preds.squeeze(-1)
+
+    @torch.no_grad()
+    def evaluation(self, data):
+        opt_obj = data.obj_solution
+
+        # prediction
+        pred_x = self.forward(data, True).relu()
+
+        vals_batch = data['vals'].batch
+        P_edge_index = data.edge_index_dict[('vals', 'to', 'vals')]
+        P_weight = data.edge_attr_dict[('vals', 'to', 'vals')].squeeze()
+        P_edge_slice = data._slice_dict[('vals', 'to', 'vals')]['edge_index'].to(pred_x.device)
+
+        batch_obj = qp_obj(pred_x, P_edge_index, P_weight, data.q, P_edge_slice, vals_batch)
+        batch_violation = Trainer.violate_per_batch(pred_x[:, None], data)
+        return pred_x, torch.abs((opt_obj - batch_obj) / opt_obj), batch_violation

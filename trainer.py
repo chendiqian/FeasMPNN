@@ -309,3 +309,60 @@ class MultiGPUIPMTrainer(IPMTrainer):
 
         objs = torch.cat(objs, dim=0).mean()
         return objs
+
+
+class FixStepIPMTrainer(Trainer):
+    def __init__(self,
+                 loss_type,
+                 microbatch):
+        self.best_objgap = 1.e8
+        self.patience = 0
+        self.loss_type = loss_type
+        if loss_type == 'l2':
+            self.loss_func = lambda x: x ** 2
+        elif loss_type == 'l1':
+            self.loss_func = lambda x: x.abs()
+        else:
+            raise ValueError
+        self.microbatch = microbatch
+
+    def train(self, dataloader, model, optimizer):
+        model.train()
+        optimizer.zero_grad()
+
+        train_losses = 0.
+        num_graphs = 0
+        for i, data in enumerate(dataloader):
+            data = data.to(device)
+
+            pred = model(data)  # nnodes x steps
+            loss = self.get_loss(pred, data.trajectory, data['vals'].batch)
+
+            train_losses += loss.detach() * data.num_graphs
+            num_graphs += data.num_graphs
+
+            loss = loss / self.microbatch
+            loss.backward()
+            if (i + 1) % self.microbatch == 0 or (i + 1) == len(dataloader):
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, error_if_nonfinite=True)
+                optimizer.step()
+                optimizer.zero_grad()
+
+        return (train_losses / num_graphs).item()
+
+    @torch.no_grad()
+    def eval(self, dataloader, model):
+        model.eval()
+
+        objgaps = []
+        violations = []
+        for i, data in enumerate(dataloader):
+            data = data.to(device)
+            _, obj_gap, violation = model.evaluation(data)
+
+            objgaps.append(obj_gap)
+            violations.append(violation)
+
+        objgaps = torch.cat(objgaps, dim=0).mean().item()
+        violations = torch.cat(violations, dim=0).mean().item()
+        return objgaps, violations

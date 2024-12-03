@@ -27,6 +27,7 @@ tau: 0.01
 tau_scale: 0.5
 plain_xstarts: false
 eval_every: 2
+tripartite: false
 conv: gcnconv
 gat:
   heads: 1

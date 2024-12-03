@@ -14,7 +14,7 @@ from data.dataset import LPDataset
 from data.collate_func import collate_fn_lp_bi
 from data.transforms import GCNNorm
 from data.prefetch_generator import BackgroundGenerator
-from models.base_hetero_gnn import BipartiteHeteroGNN
+from models.base_hetero_gnn import BipartiteHeteroGNN, TripartiteHeteroGNN
 from models.feasible_unroll_model import FeasibleUnrollGNN
 from trainer import Trainer
 from data.utils import save_run_config
@@ -52,17 +52,18 @@ def main(args: DictConfig):
     test_objgaps = []
 
     for run in range(args.runs):
-        gnn = BipartiteHeteroGNN(conv=args.conv,
-                                 head=args.gat.heads,
-                                 concat=args.gat.concat,
-                                 hid_dim=args.hidden,
-                                 num_encode_layers=args.num_encode_layers,
-                                 num_conv_layers=args.num_conv_layers,
-                                 num_pred_layers=args.num_pred_layers,
-                                 hid_pred=args.hid_pred,
-                                 num_mlp_layers=args.num_mlp_layers,
-                                 norm=args.norm,
-                                 plain_xstarts=args.plain_xstarts)
+        ModelClass = TripartiteHeteroGNN if args.tripartite else BipartiteHeteroGNN
+        gnn = ModelClass(conv=args.conv,
+                         head=args.gat.heads,
+                         concat=args.gat.concat,
+                         hid_dim=args.hidden,
+                         num_encode_layers=args.num_encode_layers,
+                         num_conv_layers=args.num_conv_layers,
+                         num_pred_layers=args.num_pred_layers,
+                         hid_pred=args.hid_pred,
+                         num_mlp_layers=args.num_mlp_layers,
+                         norm=args.norm,
+                         plain_xstarts=args.plain_xstarts)
         model = FeasibleUnrollGNN(args.ipm_train_steps,
                                   args.train_frac,
                                   args.ipm_eval_steps,

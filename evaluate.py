@@ -15,7 +15,7 @@ from data.dataset import LPDataset
 from data.transforms import GCNNorm
 from data.utils import recover_qp_from_data
 from models.feasible_unroll_model import FeasibleUnrollGNN
-from models.base_hetero_gnn import BipartiteHeteroGNN
+from models.base_hetero_gnn import BipartiteHeteroGNN, TripartiteHeteroGNN
 from solver.linprog_ip import _ip_hsd_feas
 from trainer import Trainer
 
@@ -46,17 +46,18 @@ def main(args: DictConfig):
     gnn_violations = []
 
     # warmup and set dimensions
-    gnn = BipartiteHeteroGNN(conv=args.conv,
-                             head=args.gat.heads,
-                             concat=args.gat.concat,
-                             hid_dim=args.hidden,
-                             num_encode_layers=args.num_encode_layers,
-                             num_conv_layers=args.num_conv_layers,
-                             num_pred_layers=args.num_pred_layers,
-                             hid_pred=args.hid_pred,
-                             num_mlp_layers=args.num_mlp_layers,
-                             norm=args.norm,
-                             plain_xstarts=args.plain_xstarts)
+    ModelClass = TripartiteHeteroGNN if args.tripartite else BipartiteHeteroGNN
+    gnn = ModelClass(conv=args.conv,
+                     head=args.gat.heads,
+                     concat=args.gat.concat,
+                     hid_dim=args.hidden,
+                     num_encode_layers=args.num_encode_layers,
+                     num_conv_layers=args.num_conv_layers,
+                     num_pred_layers=args.num_pred_layers,
+                     hid_pred=args.hid_pred,
+                     num_mlp_layers=args.num_mlp_layers,
+                     norm=args.norm,
+                     plain_xstarts=args.plain_xstarts)
     model = FeasibleUnrollGNN(1, 1., args.ipm_eval_steps, gnn,
                               args.barrier_strength, args.tau, args.tau_scale).to(device)
 

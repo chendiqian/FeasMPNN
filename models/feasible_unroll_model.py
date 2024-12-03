@@ -1,9 +1,11 @@
+from typing import Union
+
 import numpy as np
 import torch
 from torch_geometric.utils import to_dense_batch
 
 from data.utils import sync_timer, qp_obj
-from models.base_hetero_gnn import BipartiteHeteroGNN
+from models.base_hetero_gnn import BipartiteHeteroGNN, TripartiteHeteroGNN
 from solver.line_search import batch_line_search
 from trainer import Trainer
 
@@ -13,7 +15,7 @@ class FeasibleUnrollGNN(torch.nn.Module):
                  num_steps: int,
                  train_frac: float,
                  num_eval_steps: int,
-                 gnn: BipartiteHeteroGNN,
+                 gnn: Union[BipartiteHeteroGNN, TripartiteHeteroGNN],
                  barrier_strength: float,
                  init_tau: float,
                  tau_scale: float):

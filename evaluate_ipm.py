@@ -11,8 +11,8 @@ from tqdm import tqdm
 from data.collate_func import collate_fn_lp_base
 from data.dataset import LPDataset
 from data.transforms import GCNNorm
-from models.ipm_model import IPMGNN
-from models.base_hetero_gnn import TripartiteHeteroGNN
+from models.ipm_unroll_model import IPMUnrollGNN
+from models.base_hetero_gnn import TripartiteHeteroGNN, BipartiteHeteroGNN
 from trainer import Trainer
 
 
@@ -40,18 +40,19 @@ def main(args: DictConfig):
     gnn_violations = []
 
     # warmup and set dimensions
-    gnn = TripartiteHeteroGNN(conv=args.conv,
-                              head=args.gat.heads,
-                              concat=args.gat.concat,
-                              hid_dim=args.hidden,
-                              num_encode_layers=args.num_encode_layers,
-                              num_conv_layers=args.num_conv_layers,
-                              num_pred_layers=args.num_pred_layers,
-                              hid_pred=args.hid_pred,
-                              num_mlp_layers=args.num_mlp_layers,
-                              norm=args.norm,
-                              plain_xstarts=args.plain_xstarts)
-    model = IPMGNN(1, args.ipm_eval_steps, gnn).to(device)
+    ModelClass = TripartiteHeteroGNN if args.tripartite else BipartiteHeteroGNN
+    gnn = ModelClass(conv=args.conv,
+                     head=args.gat.heads,
+                     concat=args.gat.concat,
+                     hid_dim=args.hidden,
+                     num_encode_layers=args.num_encode_layers,
+                     num_conv_layers=args.num_conv_layers,
+                     num_pred_layers=args.num_pred_layers,
+                     hid_pred=args.hid_pred,
+                     num_mlp_layers=args.num_mlp_layers,
+                     norm=args.norm,
+                     plain_xstarts=args.plain_xstarts)
+    model = IPMUnrollGNN(1, args.ipm_eval_steps, gnn).to(device)
 
     # warm up
     with torch.no_grad():

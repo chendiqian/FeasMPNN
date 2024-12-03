@@ -96,7 +96,7 @@ class BipartiteHeteroGNN(torch.nn.Module):
             hid_pred = hid_dim
         self.predictor = MLP([hid_dim] + [hid_pred] * num_pred_layers + [1], norm=None)
 
-    def forward(self, data, x_start=None):
+    def init_embedding(self, data, x_start):
         batch_dict: Dict[NodeType, torch.LongTensor] = data.batch_dict
         edge_index_dict: Dict[EdgeType, torch.LongTensor] = data.edge_index_dict
         edge_attr_dict: Dict[EdgeType, torch.FloatTensor] = data.edge_attr_dict
@@ -111,6 +111,10 @@ class BipartiteHeteroGNN(torch.nn.Module):
                                                      'cons': cons_embedding}
         x0_dict: Dict[NodeType, torch.FloatTensor] = {'vals': vals_embedding,
                                                       'cons': cons_embedding}
+        return batch_dict, edge_index_dict, edge_attr_dict, norm_dict, x_dict, x0_dict
+
+    def forward(self, data, x_start=None):
+        batch_dict, edge_index_dict, edge_attr_dict, norm_dict, x_dict, x0_dict = self.init_embedding(data, x_start)
 
         for i in range(self.num_layers):
             x_dict = self.gcns[i](x_dict, x0_dict, batch_dict, edge_index_dict, edge_attr_dict, norm_dict)
@@ -165,7 +169,7 @@ class TripartiteHeteroGNN(torch.nn.Module):
             hid_pred = hid_dim
         self.predictor = MLP([hid_dim] + [hid_pred] * num_pred_layers + [1], norm=None)
 
-    def forward(self, data, x_start=None):
+    def init_embedding(self, data, x_start):
         batch_dict: Dict[NodeType, torch.LongTensor] = data.batch_dict
         edge_index_dict: Dict[EdgeType, torch.LongTensor] = data.edge_index_dict
         edge_attr_dict: Dict[EdgeType, torch.FloatTensor] = data.edge_attr_dict
@@ -184,6 +188,10 @@ class TripartiteHeteroGNN(torch.nn.Module):
         x0_dict: Dict[NodeType, torch.FloatTensor] = {'vals': vals_embedding,
                                                       'cons': cons_embedding,
                                                       'obj': x_dict['obj']}
+        return batch_dict, edge_index_dict, edge_attr_dict, norm_dict, x_dict, x0_dict
+
+    def forward(self, data, x_start=None):
+        batch_dict, edge_index_dict, edge_attr_dict, norm_dict, x_dict, x0_dict = self.init_embedding(data, x_start)
 
         for i in range(self.num_layers):
             x_dict = self.gcns[i](x_dict, x0_dict, batch_dict, edge_index_dict, edge_attr_dict, norm_dict)

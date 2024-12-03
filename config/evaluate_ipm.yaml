@@ -10,6 +10,7 @@ batchsize: 1   # can evaluate in batches
 
 ipm_eval_steps: 32
 plain_xstarts: true
+tripartite: true
 conv: gcnconv
 gat:
   heads: 1

@@ -22,6 +22,7 @@ ipm_train_steps: 8
 ipm_eval_steps: 32
 plain_xstarts: true
 eval_every: 1
+tripartite: true
 conv: gcnconv
 gat:
   heads: 1

@@ -18,6 +18,7 @@ num_workers: 1
 microbatch: 1
 
 eval_every: 1
+tripartite: true
 conv: gcnconv
 gat:
   heads: 1

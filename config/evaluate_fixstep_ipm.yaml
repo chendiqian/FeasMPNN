@@ -8,6 +8,7 @@ datapath: /work/log1/chendi.qian/qp_400_new
 modelpath: ./ckpt
 batchsize: 1   # can evaluate in batches
 
+tripartite: true
 conv: gcnconv
 gat:
   heads: 1

@@ -14,7 +14,7 @@ from data.dataset import LPDataset
 from data.collate_func import collate_fn_lp_base
 from data.transforms import GCNNorm
 from data.prefetch_generator import BackgroundGenerator
-from models.ipm_model import FixStepIPMGNN
+from models.ipm_fixstep_model import FixStepTripartiteIPMGNN, FixStepBipartiteIPMGNN
 from trainer import FixStepIPMTrainer
 from data.utils import save_run_config
 
@@ -51,16 +51,17 @@ def main(args: DictConfig):
     test_objgaps = []
 
     for run in range(args.runs):
-        model = FixStepIPMGNN(conv=args.conv,
-                              head=args.gat.heads,
-                              concat=args.gat.concat,
-                              hid_dim=args.hidden,
-                              num_encode_layers=args.num_encode_layers,
-                              num_conv_layers=args.num_conv_layers,
-                              num_pred_layers=args.num_pred_layers,
-                              hid_pred=args.hid_pred,
-                              num_mlp_layers=args.num_mlp_layers,
-                              norm=args.norm).to(device)
+        ModelClass = FixStepTripartiteIPMGNN if args.tripartite else FixStepBipartiteIPMGNN
+        model = ModelClass(conv=args.conv,
+                           head=args.gat.heads,
+                           concat=args.gat.concat,
+                           hid_dim=args.hidden,
+                           num_encode_layers=args.num_encode_layers,
+                           num_conv_layers=args.num_conv_layers,
+                           num_pred_layers=args.num_pred_layers,
+                           hid_pred=args.hid_pred,
+                           num_mlp_layers=args.num_mlp_layers,
+                           norm=args.norm).to(device)
         best_model = copy.deepcopy(model.state_dict())
 
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)

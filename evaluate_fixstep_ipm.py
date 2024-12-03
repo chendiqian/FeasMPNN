@@ -11,7 +11,7 @@ from tqdm import tqdm
 from data.collate_func import collate_fn_lp_base
 from data.dataset import LPDataset
 from data.transforms import GCNNorm
-from models.ipm_model import FixStepIPMGNN
+from models.ipm_fixstep_model import FixStepBipartiteIPMGNN, FixStepTripartiteIPMGNN
 from data.utils import sync_timer
 
 
@@ -38,16 +38,17 @@ def main(args: DictConfig):
     gnn_violations = []
 
     # warmup and set dimensions
-    model = FixStepIPMGNN(conv=args.conv,
-                          head=args.gat.heads,
-                          concat=args.gat.concat,
-                          hid_dim=args.hidden,
-                          num_encode_layers=args.num_encode_layers,
-                          num_conv_layers=args.num_conv_layers,
-                          num_pred_layers=args.num_pred_layers,
-                          hid_pred=args.hid_pred,
-                          num_mlp_layers=args.num_mlp_layers,
-                          norm=args.norm).to(device)
+    ModelClass = FixStepTripartiteIPMGNN if args.tripartite else FixStepBipartiteIPMGNN
+    model = ModelClass(conv=args.conv,
+                       head=args.gat.heads,
+                       concat=args.gat.concat,
+                       hid_dim=args.hidden,
+                       num_encode_layers=args.num_encode_layers,
+                       num_conv_layers=args.num_conv_layers,
+                       num_pred_layers=args.num_pred_layers,
+                       hid_pred=args.hid_pred,
+                       num_mlp_layers=args.num_mlp_layers,
+                       norm=args.norm).to(device)
 
     # warm up
     with torch.no_grad():

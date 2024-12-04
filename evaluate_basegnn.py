@@ -83,7 +83,15 @@ def main(args: DictConfig):
                  "vio_mean": np.mean(gnn_violations),
                  "vio_std": np.std(gnn_violations),
                  "gnn_time_mean": np.mean(gnn_times),
-                 "gnn_time_std": np.std(gnn_times)}
+                 "gnn_time_std": np.std(gnn_times),
+                 # for latex convenience
+                 "percent_obj_string": f'{np.mean(best_gnn_obj) * 100:.3f}'
+                                       f'\scriptsize$\pm${np.std(best_gnn_obj) * 100:.3f}',
+                 "gnn_time_string": f'{np.mean(gnn_times):.3f}'
+                                    f'\scriptsize$\pm${np.std(gnn_times):.3f}',
+                 "vio_string": f'{np.mean(gnn_violations):.3f}'
+                               f'\scriptsize$\pm${np.std(gnn_violations):.3f}'
+                 }
 
     wandb.log(stat_dict)
 

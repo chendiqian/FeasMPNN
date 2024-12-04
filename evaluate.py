@@ -156,8 +156,8 @@ def main(args: DictConfig):
                                        f'\scriptsize$\pm${np.std(best_gnn_obj) * 100:.3f}',
                  "gnn_time_string": f'{np.mean(gnn_times):.3f}'
                                     f'\scriptsize$\pm${np.std(gnn_times):.3f}',
-                 "vio_string": f'{np.mean(gnn_violations):.3f}'
-                               f'\scriptsize$\pm${np.std(gnn_violations):.3f}'
+                 "prep_time_string": f'{np.mean(preprocess_times):.3f}'
+                                    f'\scriptsize$\pm${np.std(preprocess_times):.3f}'
                  }
 
     wandb.log(stat_dict)

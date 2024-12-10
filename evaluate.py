@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import wandb
 from omegaconf import DictConfig, OmegaConf
-from scipy.linalg import null_space
+from scipy.linalg import qr
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -69,7 +69,7 @@ def main(args: DictConfig):
 
     _, _, A, b, _, _, _, _ = recover_qp_from_data(data.to('cpu'))
     for _ in range(20):
-        _ = null_space(A)
+        _ = qr(A.T)
         _ = _ip_hsd_feas(A, b, np.zeros(A.shape[1]), 0.,
                          alpha0=0.9999999, beta=0.1,
                          maxiter=5, tol=1.e-3, sparse=True,
@@ -103,7 +103,7 @@ def main(args: DictConfig):
             # null space and x_feasible pre-process
             P, q, A, b, G, h, lb, ub = recover_qp_from_data(data)
             t0 = time.time()
-            _ = null_space(A)
+            _ = qr(A.T)
             t1 = time.time()
             null_time = t1 - t0
             _ = _ip_hsd_feas(A, b, np.zeros(A.shape[1]), 0.,

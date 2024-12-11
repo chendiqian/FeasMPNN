@@ -88,6 +88,13 @@ class BipartiteConv(torch.nn.Module):
              'cons_vals': c2v_conv}
         )
         self.has_skip = 'x_0' in inspect.signature(v2c_conv.forward).parameters.keys()
+        if sync_conv:
+            self.conv_sequence = [('vals_cons',),
+                                  ('vals_vals', 'cons_vals')]
+        else:
+            self.conv_sequence = [('vals_vals',),
+                                  ('vals_cons',),
+                                  ('cons_vals',)]
         self.sync_conv = sync_conv
 
     def forward(
@@ -101,21 +108,25 @@ class BipartiteConv(torch.nn.Module):
     ) -> Dict[NodeType, torch.FloatTensor]:
 
         new_dict = {}
-        for src, rel, dst in [('vals', 'to', 'vals'),
-                              ('vals', 'to', 'cons'),
-                              ('cons', 'to', 'vals')]:
-            args = [(x_dict[src], x_dict[dst])]
-            if self.has_skip:
-                args.append(x0_dict[dst])
-            args = args + [edge_index_dict[(src, rel, dst)],
-                           edge_attr_dict[(src, rel, dst)],
-                           batch_dict[dst]]
-            if norm_dict[(src, rel, dst)] is not None:
-                args.append(norm_dict[(src, rel, dst)])
+        for conv_group in self.conv_sequence:
+            current_results = []
+            dst = conv_group[0].split('_')[1]
+            for conv in conv_group:
+                src, dst = conv.split('_')
+                args = [(x_dict[src], x_dict[dst])]
+                if self.has_skip:
+                    args.append(x0_dict[dst])
+                args = args + [edge_index_dict[(src, 'to', dst)],
+                               edge_attr_dict[(src, 'to', dst)],
+                               batch_dict[dst]]
+                if norm_dict[(src, 'to', dst)] is not None:
+                    args.append(norm_dict[(src, 'to', dst)])
+
+                current_results.append(self.convs[conv](*args))
 
             if self.sync_conv:
-                new_dict[dst] = self.convs['_'.join([src, dst])](*args)
+                new_dict[dst] = group(current_results, 'mean')
             else:
-                x_dict[dst] = self.convs['_'.join([src, dst])](*args)
+                x_dict[dst] = group(current_results, 'mean')
 
         return new_dict if self.sync_conv else x_dict

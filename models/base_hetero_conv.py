@@ -17,6 +17,7 @@ class TripartiteConv(torch.nn.Module):
             o2v_conv: torch.nn.Module,
             c2o_conv: torch.nn.Module,
             o2c_conv: torch.nn.Module,
+            sync_conv: bool = False
     ):
         super().__init__()
 
@@ -34,6 +35,7 @@ class TripartiteConv(torch.nn.Module):
         self.conv_sequence = [('vals_cons', 'obj_cons'),
                               ('cons_obj', 'vals_obj'),
                               ('vals_vals', 'cons_vals', 'obj_vals')]
+        self.sync_conv = sync_conv
 
     def forward(
             self,
@@ -45,6 +47,7 @@ class TripartiteConv(torch.nn.Module):
             norm_dict: Dict[EdgeType, Optional[torch.FloatTensor]]
     ) -> Dict[NodeType, torch.FloatTensor]:
 
+        new_dict = {}
         for conv_group in self.conv_sequence:
             current_results = []
             dst = conv_group[0].split('_')[1]
@@ -61,8 +64,12 @@ class TripartiteConv(torch.nn.Module):
 
                 current_results.append(self.convs[conv](*args))
 
-            x_dict[dst] = group(current_results, 'mean')
-        return x_dict
+            if self.sync_conv:
+                new_dict[dst] = group(current_results, 'mean')
+            else:
+                x_dict[dst] = group(current_results, 'mean')
+
+        return new_dict if self.sync_conv else x_dict
 
 
 class BipartiteConv(torch.nn.Module):
@@ -71,6 +78,7 @@ class BipartiteConv(torch.nn.Module):
             v2v_conv: torch.nn.Module,
             v2c_conv: torch.nn.Module,
             c2v_conv: torch.nn.Module,
+            sync_conv: bool = False
     ):
         super().__init__()
 
@@ -80,6 +88,7 @@ class BipartiteConv(torch.nn.Module):
              'cons_vals': c2v_conv}
         )
         self.has_skip = 'x_0' in inspect.signature(v2c_conv.forward).parameters.keys()
+        self.sync_conv = sync_conv
 
     def forward(
             self,
@@ -91,6 +100,7 @@ class BipartiteConv(torch.nn.Module):
             norm_dict: Dict[EdgeType, Optional[torch.FloatTensor]]
     ) -> Dict[NodeType, torch.FloatTensor]:
 
+        new_dict = {}
         for src, rel, dst in [('vals', 'to', 'vals'),
                               ('vals', 'to', 'cons'),
                               ('cons', 'to', 'vals')]:
@@ -103,6 +113,9 @@ class BipartiteConv(torch.nn.Module):
             if norm_dict[(src, rel, dst)] is not None:
                 args.append(norm_dict[(src, rel, dst)])
 
-            x_dict[dst] = self.convs['_'.join([src, dst])](*args)
+            if self.sync_conv:
+                new_dict[dst] = self.convs['_'.join([src, dst])](*args)
+            else:
+                x_dict[dst] = self.convs['_'.join([src, dst])](*args)
 
-        return x_dict
+        return new_dict if self.sync_conv else x_dict

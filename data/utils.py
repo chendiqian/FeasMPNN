@@ -117,3 +117,18 @@ def recover_qp_from_data(data, dtype=np.float32):
 
     G, h, ub = (None,) * 3
     return P, q, A, b, G, h, lb, ub
+
+
+def recover_lp_from_data(data, dtype=np.float32):
+    data = data.to('cpu')
+    c = data.q.numpy().astype(dtype)
+    b = data.b.numpy().astype(dtype)
+    A = SparseTensor(row=data['cons', 'to', 'vals'].edge_index[0],
+                     col=data['cons', 'to', 'vals'].edge_index[1],
+                     value=data['cons', 'to', 'vals'].edge_attr.squeeze(),
+                     sparse_sizes=(data['cons'].num_nodes, data['vals'].num_nodes),
+                     is_sorted=True, trust_data=True).to_dense().numpy().astype(dtype)
+    # todo: might vary
+    lb = np.zeros(A.shape[1]).astype(dtype)
+    ub = None
+    return A, c, b, lb, ub

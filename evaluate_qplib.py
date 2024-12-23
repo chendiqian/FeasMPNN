@@ -1,4 +1,5 @@
 import os
+import pdb
 
 import hydra
 import numpy as np
@@ -28,7 +29,7 @@ def main(args: DictConfig):
     nulls = data.nulls.reshape(1, data.x_solution.shape[0], -1)
     data = collate_fn_lp_base([data])
     data.proj_matrix = nulls
-    data.x_start = data.x_feasible * 0.1
+    data.x_start = data.x_feasible
 
     # warmup and set dimensions
     ModelClass = TripartiteHeteroGNN if args.tripartite else BipartiteHeteroGNN

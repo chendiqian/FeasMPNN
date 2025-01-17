@@ -6,6 +6,8 @@ import torch
 from data.utils import sync_timer, qp_obj
 from models.base_hetero_gnn import TripartiteHeteroGNN, BipartiteHeteroGNN
 
+from trainer import Trainer
+
 
 class IPMUnrollGNN(torch.nn.Module):
     def __init__(self,
@@ -37,11 +39,13 @@ class IPMUnrollGNN(torch.nn.Module):
         # reset
         time_steps = []
         x_start = data.x_feasible.clone()
-        current_best_x = x_start
         opt_obj = data.obj_solution
-        vals_batch = data['vals'].batch
-        current_obj = qp_obj(current_best_x, data)
-        current_best_rel_obj_gap = torch.abs((opt_obj - current_obj) / opt_obj)
+        current_obj = qp_obj(x_start, data)
+        current_obj_gap = torch.abs((opt_obj - current_obj) / opt_obj)
+        current_vio = Trainer.violate_per_batch(x_start, data)
+
+        objgaps = [current_obj_gap]
+        vios = [current_vio]
 
         for i in range(self.num_val_steps):
             # prediction
@@ -53,16 +57,21 @@ class IPMUnrollGNN(torch.nn.Module):
             x_start = pred
 
             current_obj = qp_obj(x_start, data)
-            # unlike our method, here we DON'T have strict feasible solution, we use the absolute value of the error
+            current_obj_gap = torch.abs((opt_obj - current_obj) / opt_obj)
+            objgaps.append(current_obj_gap)
 
-            current_rel_obj_gap = torch.abs((opt_obj - current_obj) / opt_obj)
+            current_vio = Trainer.violate_per_batch(x_start, data)
+            vios.append(current_vio)
 
-            better_mask = current_rel_obj_gap < current_best_rel_obj_gap
-            current_best_rel_obj_gap = torch.where(better_mask, current_rel_obj_gap, current_best_rel_obj_gap)
-            better_mask = better_mask[vals_batch]
-            current_best_x = torch.where(better_mask, x_start, current_best_x)
             time_steps.append(t_end - t_start)
 
         time_steps = np.cumsum(time_steps, axis=0)
 
-        return current_best_x, current_best_rel_obj_gap, time_steps
+        vios = torch.stack(vios, dim=0)  # steps x batchsize
+        objgaps = torch.stack(objgaps, dim=0)   # steps x batchsize
+        thresh = torch.topk(vios, k=self.num_val_steps // 4, dim=0, largest=False, sorted=True).values[-1:, :]
+        objgaps = torch.where(vios <= thresh, objgaps, 1.e5)
+        best_objgaps = objgaps.min(0).values.float()
+        vios = vios[objgaps.argmin(0), torch.arange(vios.shape[1])]
+
+        return vios, best_objgaps, time_steps

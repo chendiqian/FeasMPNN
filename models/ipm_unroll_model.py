@@ -41,10 +41,9 @@ class IPMUnrollGNN(torch.nn.Module):
         x_start = data.x_feasible.clone()
         opt_obj = data.obj_solution
         current_obj = qp_obj(x_start, data)
-        current_obj_gap = torch.abs((opt_obj - current_obj) / opt_obj)
         current_vio = Trainer.violate_per_batch(x_start, data)
 
-        objgaps = [current_obj_gap]
+        objs = [current_obj]
         vios = [current_vio]
 
         for i in range(self.num_val_steps):
@@ -57,8 +56,7 @@ class IPMUnrollGNN(torch.nn.Module):
             x_start = pred
 
             current_obj = qp_obj(x_start, data)
-            current_obj_gap = torch.abs((opt_obj - current_obj) / opt_obj)
-            objgaps.append(current_obj_gap)
+            objs.append(current_obj)
 
             current_vio = Trainer.violate_per_batch(x_start, data)
             vios.append(current_vio)
@@ -68,10 +66,12 @@ class IPMUnrollGNN(torch.nn.Module):
         time_steps = np.cumsum(time_steps, axis=0)
 
         vios = torch.stack(vios, dim=0)  # steps x batchsize
-        objgaps = torch.stack(objgaps, dim=0)   # steps x batchsize
+        objs = torch.stack(objs, dim=0)   # steps x batchsize
         thresh = torch.topk(vios, k=self.num_val_steps // 4, dim=0, largest=False, sorted=True).values[-1:, :]
-        objgaps = torch.where(vios <= thresh, objgaps, 1.e5)
-        best_objgaps = objgaps.min(0).values.float()
-        vios = vios[objgaps.argmin(0), torch.arange(vios.shape[1])]
+        objs = torch.where(vios <= thresh, objs, 1.e10)
+        best_objs = objs.min(0).values.float()
+        vios = vios[objs.argmin(0), torch.arange(vios.shape[1])]
+
+        best_objgaps = torch.abs((opt_obj - best_objs) / opt_obj)
 
         return vios, best_objgaps, time_steps

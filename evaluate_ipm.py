@@ -13,7 +13,6 @@ from data.dataset import LPDataset
 from data.transforms import GCNNorm
 from models.ipm_unroll_model import IPMUnrollGNN
 from models.base_hetero_gnn import TripartiteHeteroGNN, BipartiteHeteroGNN
-from trainer import Trainer
 
 
 @hydra.main(version_base=None, config_path='./config', config_name="evaluate_ipm")
@@ -83,20 +82,21 @@ def main(args: DictConfig):
         pbar = tqdm(dataloader)
         for data in pbar:
             data = data.to(device)
-            final_x, best_obj, time_stamps = model.evaluation(data)
+            vio, best_obj, time_stamps = model.evaluation(data)
             gnn_timsteps.append(time_stamps)
             times.append(time_stamps[-1])
             best_obj = best_obj.cpu().numpy()
+            vio = vio.cpu().numpy()
             gaps.append(best_obj)
-            vios.append(Trainer.violate_per_batch(final_x, data).cpu().numpy())
+            vios.append(vio)
 
             stat_dict = {'gap': best_obj.mean(),
-                         'vio': vios[-1].mean(),
+                         'vio': vio.mean(),
                          'gnn_time': time_stamps[-1]}
             pbar.set_postfix(stat_dict)
             wandb.log(stat_dict)
         gaps = np.concatenate(gaps, axis=0)
-        vios = np.concatenate(vios)
+        vios = np.concatenate(vios, axis=0)
         best_gnn_obj.append(np.mean(gaps))
         gnn_violations.append(np.mean(vios))
         gnn_times.append(np.mean(times))

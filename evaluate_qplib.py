@@ -1,5 +1,4 @@
 import os
-import pdb
 
 import hydra
 import numpy as np
@@ -83,8 +82,6 @@ def main(args: DictConfig):
         abs_obj.append(qp_obj(final_x, data))
 
         wandb.log({'gap': best_obj.mean(), 'vio': vios[-1].mean()})
-
-        print(f'{data.obj_solution.item():.3f} & {abs_obj[-1].item():.3f} &  {best_obj.item() * 100:.3f}')
 
     stat_dict = {"rel_obj_mean": np.mean(rel_obj_gap),
                  "rel_obj_std": np.std(rel_obj_gap),

@@ -1,5 +1,10 @@
 # Towards graph neural networks for provably solving convex optimization problems
 
+<img src="https://github.com/chendiqian/FeasMPNN/blob/qp/image.png" alt="drawing" width="900"/>
+<p align="center">
+An overview of our Feasibility-guaranteed iterations
+</p>
+
 ## Environment setup
 
 ```angular2html
